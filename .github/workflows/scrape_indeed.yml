@@ -2,9 +2,11 @@ name: Scrape Indeed Jobs Daily
 
 on:
   schedule:
-    # Runs at 10:00 AM UTC every day
-    - cron: '0 10 * * *'
+    - cron: '0 10 * * *'  # Runs every day at 10:00 AM UTC
   workflow_dispatch:
+
+permissions:
+  contents: write  # Allows workflow to push CSV results back to repo
 
 jobs:
   scrape_jobs:
@@ -13,6 +15,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -22,19 +26,20 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install scrapy
+          pip install scrapy requests
 
       - name: Run Scrapy spider
         env:
           SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
+        working-directory: indeed_scraper
         run: |
-          echo "Running Scrapy with API key"
-          scrapy crawl indeed -o indeed_jobs.csv
+          echo "Running Scrapy with API key..."
+          scrapy crawl indeed -o ../indeed_jobs.csv
 
-      - name: Commit and push changes
+      - name: Commit and push results
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add indeed_jobs.csv
+          git add indeed_jobs.csv || echo "No file to add"
           git commit -m "Automated update of Indeed jobs" || echo "No changes to commit"
           git push
