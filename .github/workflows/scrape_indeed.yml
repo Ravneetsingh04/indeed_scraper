@@ -28,8 +28,7 @@ jobs:
         env:
           SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
         run: |
-          # Use sed to replace the placeholder with the API key from secrets
-          sed -i "s/YOUR_SCRAPINGBEE_API_KEY/${SCRAPINGBEE_API_KEY}/g" indeed_scraper/spiders/indeed.py
+          echo "Running Scrapy with API key"
           scrapy crawl indeed -o indeed_jobs.csv
 
       - name: Commit and push changes
