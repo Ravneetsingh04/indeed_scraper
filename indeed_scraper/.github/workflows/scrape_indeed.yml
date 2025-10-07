@@ -1,0 +1,41 @@
+name: Scrape Indeed Jobs Daily
+
+on:
+  schedule:
+    # Runs at 10:00 AM UTC every day
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape_jobs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install scrapy
+
+      - name: Run Scrapy spider
+        env:
+          SCRAPINGBEE_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
+        run: |
+          # Use sed to replace the placeholder with the API key from secrets
+          sed -i "s/YOUR_SCRAPINGBEE_API_KEY/${SCRAPINGBEE_API_KEY}/g" indeed_scraper/spiders/indeed.py
+          scrapy crawl indeed -o indeed_jobs.csv
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add indeed_jobs.csv
+          git commit -m "Automated update of Indeed jobs" || echo "No changes to commit"
+          git push
