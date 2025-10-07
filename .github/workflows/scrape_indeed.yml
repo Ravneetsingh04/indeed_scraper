@@ -26,7 +26,7 @@ jobs:
 
       - name: Run Scrapy spider
         env:
-          SCRAPINGBEE_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
+          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
         run: |
           # Use sed to replace the placeholder with the API key from secrets
           sed -i "s/YOUR_SCRAPINGBEE_API_KEY/${SCRAPINGBEE_API_KEY}/g" indeed_scraper/spiders/indeed.py
