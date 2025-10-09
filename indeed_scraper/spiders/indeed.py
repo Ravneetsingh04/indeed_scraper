@@ -1,6 +1,7 @@
 import scrapy
 from urllib.parse import urlencode
 import os
+import re
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
 MAX_API_CALLS = 5  # 👈 Set max allowed ScraperAPI requests per workflow run
