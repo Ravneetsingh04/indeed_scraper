@@ -34,12 +34,17 @@ jobs:
         working-directory: indeed_scraper
         run: |
           echo "Running Scrapy with API key..."
-          scrapy crawl indeed -o ../indeed_jobs.csv
+          mkdir -p $GITHUB_WORKSPACE/output
+          scrapy crawl indeed -o $GITHUB_WORKSPACE/output/indeed_jobs.csv
+          echo "Scrapy completed. Checking output:"
+          ls -lh $GITHUB_WORKSPACE/output/
+          head -n 10 $GITHUB_WORKSPACE/output/indeed_jobs.csv || echo "File empty!"
 
       - name: Commit and push results
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
+          cp output/indeed_jobs.csv .
           git add indeed_jobs.csv || echo "No file to add"
           git commit -m "Automated update of Indeed jobs" || echo "No changes to commit"
           git push
