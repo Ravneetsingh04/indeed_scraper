@@ -1,5 +1,5 @@
 import scrapy
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 import os
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
@@ -8,7 +8,7 @@ def get_proxy_url(url):
     payload = {
         "api_key": API_KEY,
         "url": url,
-        "render": "true"  # Ask ScraperAPI to render JS if needed
+        "render": "true"
     }
     return "https://api.scraperapi.com/?" + urlencode(payload)
 
@@ -30,11 +30,6 @@ class IndeedSpider(scrapy.Spider):
         self.pageCount += 1
         self.log(f"--- Fetched page {self.pageCount}: {response.url} (status {response.status})")
 
-        # Print a snippet of the HTML to debug
-        snippet = response.text[:500].replace("\n", " ")
-        self.log("HTML snippet: " + snippet)
-
-        # Try a more current selector for job cards
         job_cards = response.css('div.job_seen_beacon')
         self.log(f"Found {len(job_cards)} job cards")
 
@@ -43,14 +38,19 @@ class IndeedSpider(scrapy.Spider):
             company = card.css('span.companyName::text').get()
             location = card.css('div.companyLocation::text').get()
             salary = card.css('div.salary-snippet-container span::text').get()
-            job_rel = card.css('h2.jobTitle a::attr(href)').get()
 
-            if not job_rel:
-                self.log("Skipping card because no job URL found")
+            # Extract the relative job link (avoid API redirect URLs)
+            job_url = card.css('h2.jobTitle a::attr(href)').get()
+            if not job_url:
                 continue
 
-            full_job_url = response.urljoin(job_rel)
+            # Ensure we’re using a proper Indeed URL, not a redirect one
+            if job_url.startswith("/rc/clk") or job_url.startswith("/pagead/clk"):
+                job_url = f"https://www.indeed.com{job_url}"
 
+            full_job_url = job_url
+
+            # ✅ Don’t double-wrap URLs with ScraperAPI if already encoded
             yield scrapy.Request(
                 get_proxy_url(full_job_url),
                 callback=self.parse_details,
@@ -59,7 +59,8 @@ class IndeedSpider(scrapy.Spider):
                     "company": company,
                     "location": location,
                     "salary": salary,
-                }
+                },
+                errback=self.handle_error
             )
 
         # Pagination
@@ -68,8 +69,6 @@ class IndeedSpider(scrapy.Spider):
             if next_page:
                 next_url = response.urljoin(next_page)
                 yield scrapy.Request(get_proxy_url(next_url), callback=self.parse)
-            else:
-                self.log("No next page link found — ending pagination")
 
     def parse_details(self, response):
         self.log(f"Parsing details page: {response.url} (status {response.status})")
@@ -84,3 +83,6 @@ class IndeedSpider(scrapy.Spider):
             "description": description,
             "url": response.url,
         }
+
+    def handle_error(self, failure):
+        self.log(f"Request failed: {failure.request.url}")
