@@ -97,24 +97,70 @@ class IndeedSpider(scrapy.Spider):
     #         "url": response.url,
     #     }
 
+    # def parse_details(self, response, title="", company="", location="", salary=""):
+    #     self.log(f"Parsing details page: {response.url} (status {response.status})")
+    
+    #     # Extract again from job page (these are Indeed selectors that work reliably)
+    #     title_detail = response.css('h1.jobsearch-JobInfoHeader-title::text').get()
+    #     company_detail = response.css('div.jobsearch-InlineCompanyRating div::text').get()
+    #     location_detail = response.css('div.jobsearch-JobInfoHeader-subtitle div::text').get()
+    #     salary_detail = response.css('div.salary-snippet-container span::text').get()
+    
+    #     # Fallback: use passed-in values if detail selectors failed
+    #     title = title_detail or title
+    #     company = company_detail or company
+    #     location = location_detail or location
+    #     salary = salary_detail or salary
+    
+    #     # Extract job description
+    #     desc_parts = response.css('#jobDescriptionText ::text').getall()
+    #     description = " ".join(part.strip() for part in desc_parts if part.strip())
+    
+    #     yield {
+    #         "title": (title or "").strip(),
+    #         "company": (company or "").strip(),
+    #         "location": (location or "").strip(),
+    #         "salary": (salary or "").strip(),
+    #         "description": description,
+    #         "url": response.url,
+    #     }
+
+
     def parse_details(self, response, title="", company="", location="", salary=""):
         self.log(f"Parsing details page: {response.url} (status {response.status})")
     
-        # Extract again from job page (these are Indeed selectors that work reliably)
+        # Extract directly from job detail header if available
         title_detail = response.css('h1.jobsearch-JobInfoHeader-title::text').get()
         company_detail = response.css('div.jobsearch-InlineCompanyRating div::text').get()
         location_detail = response.css('div.jobsearch-JobInfoHeader-subtitle div::text').get()
         salary_detail = response.css('div.salary-snippet-container span::text').get()
     
-        # Fallback: use passed-in values if detail selectors failed
+        # Extract full description text
+        desc_parts = response.css('#jobDescriptionText ::text').getall()
+        description = " ".join(part.strip() for part in desc_parts if part.strip())
+    
+        # --- Fallback extraction from description text ---
+        if not location_detail:
+            match = re.search(r"(?i)(?:Location|Work Location|Based in):\s*([A-Za-z0-9,\-\s()]+)", description)
+            if match:
+                location_detail = match.group(1).strip()
+    
+        if not salary_detail:
+            match = re.search(r"(?i)(?:Salary|Compensation|Pay|Hourly Range|Annual Pay|Rate):\s*\$?([\w\s\.,\-]+)", description)
+            if match:
+                salary_detail = match.group(1).strip()
+    
+        if not company_detail:
+            # Try extracting company name if mentioned at the top of the description
+            match = re.search(r"(?i)(?:Company|Employer):\s*([A-Za-z0-9&\.\-\s]+)", description)
+            if match:
+                company_detail = match.group(1).strip()
+    
+        # Fallback to passed-in values if still empty
         title = title_detail or title
         company = company_detail or company
         location = location_detail or location
         salary = salary_detail or salary
-    
-        # Extract job description
-        desc_parts = response.css('#jobDescriptionText ::text').getall()
-        description = " ".join(part.strip() for part in desc_parts if part.strip())
     
         yield {
             "title": (title or "").strip(),
@@ -124,6 +170,7 @@ class IndeedSpider(scrapy.Spider):
             "description": description,
             "url": response.url,
         }
+
 
 
     def handle_error(self, failure):
