@@ -11,7 +11,7 @@ import requests
 API_KEY = '3ab10a9ef8e344f02041ab03db5b63ce'
 
 def get_proxy_url(url):
-    payload = { 'api_key': '3ab10a9ef8e344f02041ab03db5b63ce', 'url': 'https://httpbin.org/' }
+    payload = { 'api_key': '3ab10a9ef8e344f02041ab03db5b63ce', 'url': url }
     proxy_url = 'https://api.scraperapi.com/?' + urlencode(payload)
     return proxy_url
 
@@ -38,7 +38,7 @@ class IndeedSpider(scrapy.Spider):
         self.log(f"Fetched page {self.pageCount}:{response.indeed_url}")
 
         # Select all job cards from the search results page
-        job_cards = response.css('div.job_list_item')
+        job_cards = response.css('div.job_seen_beacon')
 
         for card in job_cards:
             # Extract basic info
@@ -94,5 +94,5 @@ class IndeedSpider(scrapy.Spider):
             'company': response.meta['company'],
             'location': response.meta['location'],
             'description': description,
-            'url': response.url.split('url=')[1], # Get original URL
+            'url': response.url # Get original URL
         }
