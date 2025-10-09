@@ -82,20 +82,49 @@ class IndeedSpider(scrapy.Spider):
                 next_url = response.urljoin(next_page)
                 yield from self.make_api_request(next_url, self.parse)
 
-    def parse_details(self, response, title, company, location, salary):
-        self.log(f"Parsing details page: {response.url} (status {response.status})")
+    # def parse_details(self, response, title, company, location, salary):
+    #     self.log(f"Parsing details page: {response.url} (status {response.status})")
 
-        desc_parts = response.css('#jobDescriptionText ::text').getall()
-        description = " ".join(part.strip() for part in desc_parts if part.strip())
+    #     desc_parts = response.css('#jobDescriptionText ::text').getall()
+    #     description = " ".join(part.strip() for part in desc_parts if part.strip())
 
-        yield {
-            "title": title.strip(),
-            "company": company.strip(),
-            "location": location.strip(),
-            "salary": salary.strip(),
-            "description": description,
-            "url": response.url,
-        }
+    #     yield {
+    #         "title": title.strip(),
+    #         "company": company.strip(),
+    #         "location": location.strip(),
+    #         "salary": salary.strip(),
+    #         "description": description,
+    #         "url": response.url,
+    #     }
+
+    def parse_details(self, response, title="", company="", location="", salary=""):
+    self.log(f"Parsing details page: {response.url} (status {response.status})")
+
+    # Extract again from job page (these are Indeed selectors that work reliably)
+    title_detail = response.css('h1.jobsearch-JobInfoHeader-title::text').get()
+    company_detail = response.css('div.jobsearch-InlineCompanyRating div::text').get()
+    location_detail = response.css('div.jobsearch-JobInfoHeader-subtitle div::text').get()
+    salary_detail = response.css('div.salary-snippet-container span::text').get()
+
+    # Fallback: use passed-in values if detail selectors failed
+    title = title_detail or title
+    company = company_detail or company
+    location = location_detail or location
+    salary = salary_detail or salary
+
+    # Extract job description
+    desc_parts = response.css('#jobDescriptionText ::text').getall()
+    description = " ".join(part.strip() for part in desc_parts if part.strip())
+
+    yield {
+        "title": (title or "").strip(),
+        "company": (company or "").strip(),
+        "location": (location or "").strip(),
+        "salary": (salary or "").strip(),
+        "description": description,
+        "url": response.url,
+    }
+
 
     def handle_error(self, failure):
         self.log(f"❌ Request failed: {failure.request.url}")
