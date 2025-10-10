@@ -1,6 +1,7 @@
 import scrapy
 from urllib.parse import urlencode
 import os
+from datetime import datetime
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
 MAX_API_CALLS = 5
@@ -119,7 +120,7 @@ class IndeedSpider(scrapy.Spider):
 
 
 
-            posted = card.css("span.date::text, span.jobsearch-HiringInsights-entry--text::text").get()
+            posted = datetime.now().strftime("%Y-%m-%d")
             job_url = card.css("a::attr(href)").get()
 
             if not job_url:
@@ -127,14 +128,6 @@ class IndeedSpider(scrapy.Spider):
 
             if job_url.startswith("/"):
                 job_url = f"https://www.indeed.com{job_url}"
-
-            # Only today's or just posted
-            if posted:
-                posted = posted.lower().strip()
-                if not ("today" in posted or "just" in posted):
-                    continue
-            else:
-                posted = "today"
 
             if job_url in self.seen_urls:
                 continue
