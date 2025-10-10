@@ -26,25 +26,38 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install scrapy requests
+          pip install scrapy requests pandas
 
-      - name: Run Scrapy spider
+      - name: Run Scrapy spider and merge results
         env:
           SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
         working-directory: indeed_scraper
         run: |
           echo "Running Scrapy with API key..."
           mkdir -p $GITHUB_WORKSPACE/output
-          scrapy crawl indeed -o $GITHUB_WORKSPACE/output/indeed_jobs.csv
+          
+          # Run scraper to a temporary file
+          scrapy crawl indeed -o $GITHUB_WORKSPACE/output/new_jobs.csv
+
           echo "Scrapy completed. Checking output:"
           ls -lh $GITHUB_WORKSPACE/output/
-          head -n 10 $GITHUB_WORKSPACE/output/indeed_jobs.csv || echo "File empty!"
+          head -n 10 $GITHUB_WORKSPACE/output/new_jobs.csv || echo "File empty!"
+
+          # Merge with existing CSV (if exists)
+          cd $GITHUB_WORKSPACE
+          if [ -f indeed_jobs.csv ]; then
+            echo "Merging old and new job listings..."
+            # Skip header from new_jobs.csv before appending
+            tail -n +2 output/new_jobs.csv >> indeed_jobs.csv
+          else
+            echo "No existing file found, creating a new one..."
+            cp output/new_jobs.csv indeed_jobs.csv
+          fi
 
       - name: Commit and push results
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          cp output/indeed_jobs.csv .
           git add indeed_jobs.csv || echo "No file to add"
-          git commit -m "Automated update of Indeed jobs" || echo "No changes to commit"
+          git commit -m "Append new Indeed jobs" || echo "No changes to commit"
           git push
