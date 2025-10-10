@@ -67,13 +67,24 @@ class IndeedSpider(scrapy.Spider):
             #     "div.salary-snippet-container *::text, div[data-testid='attribute_snippet_text']::text"
             # ).getall()
             # salary = " ".join(p.strip() for p in salary_parts if p.strip())
+            # salary_parts = card.css(
+            # "div.salary-snippet-container *::text, "
+            # "div[data-testid='attribute_snippet_text']::text, "
+            # "div#salaryInfoAndJobType *::text, "
+            # "div[data-testid='jobsearch-OtherJobDetailsContainer'] *::text"
+            # ).getall()
+            # salary = " ".join(p.strip() for p in salary_parts if p.strip())
+
+            # Capture salary variants directly visible on the listing page
             salary_parts = card.css(
-            "div.salary-snippet-container *::text, "
-            "div[data-testid='attribute_snippet_text']::text, "
-            "div#salaryInfoAndJobType *::text, "
-            "div[data-testid='jobsearch-OtherJobDetailsContainer'] *::text"
+                "div.metadata.salary-snippet-container *::text, "
+                "div.salary-snippet-container *::text, "
+                "span.estimated-salary::text, "
+                "div[data-testid='attribute_snippet_text']::text"
             ).getall()
-            salary = " ".join(p.strip() for p in salary_parts if p.strip())
+            
+            salary = " ".join(p.strip() for p in salary_parts if p.strip()) or "Not disclosed"
+
 
             posted = card.css("span.date::text, span.jobsearch-HiringInsights-entry--text::text").get()
             job_url = card.css("a::attr(href)").get()
@@ -100,7 +111,7 @@ class IndeedSpider(scrapy.Spider):
                 "title": (title or "").strip(),
                 "company": (company or "").strip(),
                 "location": (location or "").strip(),
-                "salary": (salary or "Not disclosed").strip(),
+                "salary": salary.strip(),
                 "posted": posted,
                 "url": job_url,
             }
