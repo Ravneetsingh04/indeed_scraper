@@ -4,7 +4,7 @@ import os
 import re
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
-MAX_API_CALLS = 5  # 👈 Set max allowed ScraperAPI requests per workflow run
+MAX_API_CALLS = 5  # 👈 Limit ScraperAPI requests per workflow run
 
 def get_proxy_url(url):
     payload = {
@@ -21,7 +21,8 @@ class IndeedSpider(scrapy.Spider):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.pageCount = 0
-        self.api_calls = 0  # ✅ Track ScraperAPI usage
+        self.api_calls = 0
+        self.seen_urls = set()  # ✅ To track unique jobs (avoid duplicates)
 
     def start_requests(self):
         search_query = "AI Developer"
@@ -51,12 +52,21 @@ class IndeedSpider(scrapy.Spider):
         job_cards = response.css('div.job_seen_beacon')
         self.log(f"Found {len(job_cards)} job cards")
 
-        for card in job_cards[:5]:  # 👈 Limit how many detail pages to visit per list page
+        for card in job_cards[:5]:  # 👈 limit to 5 detail pages per list page
+            # Extract job metadata
             title = card.css('h2.jobTitle span::text').get()
             company = card.css('span.companyName::text').get()
             location = card.css('div.companyLocation::text').get()
             salary = card.css('div.salary-snippet-container span::text').get()
             job_url = card.css('h2.jobTitle a::attr(href)').get()
+            posted_text = card.css('span.date::text, span.jobsearch-HiringInsights-entry--text::text').get()
+
+            # ✅ Only include jobs posted today or just posted
+            if posted_text:
+                posted_text = posted_text.lower().strip()
+                if not ("today" in posted_text or "just" in posted_text):
+                    self.log(f"⏭ Skipping old job ({posted_text}) - {title}")
+                    continue
 
             if not job_url:
                 continue
@@ -64,7 +74,13 @@ class IndeedSpider(scrapy.Spider):
             if job_url.startswith("/"):
                 job_url = f"https://www.indeed.com{job_url}"
 
-            # Use cb_kwargs to safely pass values to the detail parser
+            # ✅ Skip duplicates using job URL
+            if job_url in self.seen_urls:
+                self.log(f"🔁 Skipping duplicate: {job_url}")
+                continue
+            self.seen_urls.add(job_url)
+
+            # Pass data to detail page
             yield from self.make_api_request(
                 job_url,
                 self.parse_details,
@@ -72,107 +88,61 @@ class IndeedSpider(scrapy.Spider):
                     "title": title or "",
                     "company": company or "",
                     "location": location or "",
-                    "salary": salary or ""
+                    "salary": salary or "",
+                    "posted_text": posted_text or "today",
                 }
             )
 
-        # Pagination — only if limit not hit
+        # ✅ Go to next page if limit not reached
         if self.api_calls < MAX_API_CALLS:
             next_page = response.css('a[aria-label="Next Page"]::attr(href)').get()
             if next_page:
                 next_url = response.urljoin(next_page)
                 yield from self.make_api_request(next_url, self.parse)
 
-    # def parse_details(self, response, title, company, location, salary):
-    #     self.log(f"Parsing details page: {response.url} (status {response.status})")
-
-    #     desc_parts = response.css('#jobDescriptionText ::text').getall()
-    #     description = " ".join(part.strip() for part in desc_parts if part.strip())
-
-    #     yield {
-    #         "title": title.strip(),
-    #         "company": company.strip(),
-    #         "location": location.strip(),
-    #         "salary": salary.strip(),
-    #         "description": description,
-    #         "url": response.url,
-    #     }
-
-    # def parse_details(self, response, title="", company="", location="", salary=""):
-    #     self.log(f"Parsing details page: {response.url} (status {response.status})")
-    
-    #     # Extract again from job page (these are Indeed selectors that work reliably)
-    #     title_detail = response.css('h1.jobsearch-JobInfoHeader-title::text').get()
-    #     company_detail = response.css('div.jobsearch-InlineCompanyRating div::text').get()
-    #     location_detail = response.css('div.jobsearch-JobInfoHeader-subtitle div::text').get()
-    #     salary_detail = response.css('div.salary-snippet-container span::text').get()
-    
-    #     # Fallback: use passed-in values if detail selectors failed
-    #     title = title_detail or title
-    #     company = company_detail or company
-    #     location = location_detail or location
-    #     salary = salary_detail or salary
-    
-    #     # Extract job description
-    #     desc_parts = response.css('#jobDescriptionText ::text').getall()
-    #     description = " ".join(part.strip() for part in desc_parts if part.strip())
-    
-    #     yield {
-    #         "title": (title or "").strip(),
-    #         "company": (company or "").strip(),
-    #         "location": (location or "").strip(),
-    #         "salary": (salary or "").strip(),
-    #         "description": description,
-    #         "url": response.url,
-    #     }
-
-
-    def parse_details(self, response, title="", company="", location="", salary=""):
+    def parse_details(self, response, title="", company="", location="", salary="", posted_text="today"):
         self.log(f"Parsing details page: {response.url} (status {response.status})")
-    
-        # Extract directly from job detail header if available
+
+        # Extract from detail page
         title_detail = response.css('h1.jobsearch-JobInfoHeader-title::text').get()
         company_detail = response.css('div.jobsearch-InlineCompanyRating div::text').get()
         location_detail = response.css('div.jobsearch-JobInfoHeader-subtitle div::text').get()
         salary_detail = response.css('div.salary-snippet-container span::text').get()
-    
-        # Extract full description text
+
         desc_parts = response.css('#jobDescriptionText ::text').getall()
         description = " ".join(part.strip() for part in desc_parts if part.strip())
-    
+
         # --- Fallback extraction from description text ---
         if not location_detail:
             match = re.search(r"(?i)(?:Location|Work Location|Based in):\s*([A-Za-z0-9,\-\s()]+)", description)
             if match:
                 location_detail = match.group(1).strip()
-    
+
         if not salary_detail:
             match = re.search(r"(?i)(?:Salary|Compensation|Pay|Hourly Range|Annual Pay|Rate):\s*\$?([\w\s\.,\-]+)", description)
             if match:
                 salary_detail = match.group(1).strip()
-    
+
         if not company_detail:
-            # Try extracting company name if mentioned at the top of the description
             match = re.search(r"(?i)(?:Company|Employer):\s*([A-Za-z0-9&\.\-\s]+)", description)
             if match:
                 company_detail = match.group(1).strip()
-    
+
         # Fallback to passed-in values if still empty
         title = title_detail or title
         company = company_detail or company
         location = location_detail or location
         salary = salary_detail or salary
-    
+
         yield {
             "title": (title or "").strip(),
             "company": (company or "").strip(),
             "location": (location or "").strip(),
             "salary": (salary or "").strip(),
+            "posted": (posted_text or "").strip(),
             "description": description,
             "url": response.url,
         }
-
-
 
     def handle_error(self, failure):
         self.log(f"❌ Request failed: {failure.request.url}")
@@ -180,3 +150,4 @@ class IndeedSpider(scrapy.Spider):
     def closed(self, reason):
         """When spider finishes, log API usage summary."""
         self.log(f"🧾 Total ScraperAPI calls made: {self.api_calls}/{MAX_API_CALLS}")
+        self.log(f"📊 Total unique jobs scraped: {len(self.seen_urls)}")
