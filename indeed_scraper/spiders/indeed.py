@@ -58,15 +58,16 @@ class IndeedSpider(scrapy.Spider):
             company = card.css('span.companyName::text').get()
             location = card.css('div.companyLocation::text').get()
             salary = card.css('div.salary-snippet-container span::text').get()
+            posted = card.css('span.date::text, span.jobsearch-HiringInsights-entry--text::text').get()
             job_url = card.css('h2.jobTitle a::attr(href)').get()
             posted_text = card.css('span.date::text, span.jobsearch-HiringInsights-entry--text::text').get()
 
             # ✅ Only include jobs posted today or just posted
-            if posted_text:
-                posted_text = posted_text.lower().strip()
-                if not ("today" in posted_text or "just" in posted_text):
-                    self.log(f"⏭ Skipping old job ({posted_text}) - {title}")
-                    continue
+            # if posted_text:
+            #     posted_text = posted_text.lower().strip()
+            #     if not ("today" in posted_text or "just" in posted_text):
+            #         self.log(f"⏭ Skipping old job ({posted_text}) - {title}")
+            #         continue
 
             if not job_url:
                 continue
@@ -81,17 +82,51 @@ class IndeedSpider(scrapy.Spider):
             self.seen_urls.add(job_url)
 
             # Pass data to detail page
-            yield from self.make_api_request(
-                job_url,
-                self.parse_details,
-                cb_kwargs={
-                    "title": title or "",
-                    "company": company or "",
-                    "location": location or "",
-                    "salary": salary or "",
-                    "posted_text": posted_text or "today",
-                }
-            )
+            # yield from self.make_api_request(
+            #     job_url,
+            #     self.parse_details,
+            #     cb_kwargs={
+            #         "title": title or "",
+            #         "company": company or "",
+            #         "location": location or "",
+            #         "salary": salary or "",
+            #         "posted_text": posted_text or "today",
+            #     }
+            # )
+
+        # ✅ Only today's or just posted jobs
+
+            if posted:
+
+                posted = posted.lower().strip()
+
+                if not ("today" in posted or "just" in posted):
+
+                    continue
+
+            else:
+
+                posted = "today"
+
+
+
+            # ✅ Yield job data directly from list page
+
+            yield {
+
+                "title": (title or "").strip(),
+
+                "company": (company or "").strip(),
+
+                "location": (location or "").strip(),
+
+                "salary": (salary or "").strip(),
+
+                "posted": posted,
+
+                "url": job_url,
+
+            }
 
         # ✅ Go to next page if limit not reached
         if self.api_calls < MAX_API_CALLS:
@@ -100,49 +135,49 @@ class IndeedSpider(scrapy.Spider):
                 next_url = response.urljoin(next_page)
                 yield from self.make_api_request(next_url, self.parse)
 
-    def parse_details(self, response, title="", company="", location="", salary="", posted_text="today"):
-        self.log(f"Parsing details page: {response.url} (status {response.status})")
+    # def parse_details(self, response, title="", company="", location="", salary="", posted_text="today"):
+    #     self.log(f"Parsing details page: {response.url} (status {response.status})")
 
-        # Extract from detail page
-        title_detail = response.css('h1.jobsearch-JobInfoHeader-title::text').get()
-        company_detail = response.css('div.jobsearch-InlineCompanyRating div::text').get()
-        location_detail = response.css('div.jobsearch-JobInfoHeader-subtitle div::text').get()
-        salary_detail = response.css('div.salary-snippet-container span::text').get()
+    #     # Extract from detail page
+    #     title_detail = response.css('h1.jobsearch-JobInfoHeader-title::text').get()
+    #     company_detail = response.css('div.jobsearch-InlineCompanyRating div::text').get()
+    #     location_detail = response.css('div.jobsearch-JobInfoHeader-subtitle div::text').get()
+    #     salary_detail = response.css('div.salary-snippet-container span::text').get()
 
-        desc_parts = response.css('#jobDescriptionText ::text').getall()
-        description = " ".join(part.strip() for part in desc_parts if part.strip())
+    #     desc_parts = response.css('#jobDescriptionText ::text').getall()
+    #     description = " ".join(part.strip() for part in desc_parts if part.strip())
 
-        # --- Fallback extraction from description text ---
-        if not location_detail:
-            match = re.search(r"(?i)(?:Location|Work Location|Based in):\s*([A-Za-z0-9,\-\s()]+)", description)
-            if match:
-                location_detail = match.group(1).strip()
+    #     # --- Fallback extraction from description text ---
+    #     if not location_detail:
+    #         match = re.search(r"(?i)(?:Location|Work Location|Based in):\s*([A-Za-z0-9,\-\s()]+)", description)
+    #         if match:
+    #             location_detail = match.group(1).strip()
 
-        if not salary_detail:
-            match = re.search(r"(?i)(?:Salary|Compensation|Pay|Hourly Range|Annual Pay|Rate):\s*\$?([\w\s\.,\-]+)", description)
-            if match:
-                salary_detail = match.group(1).strip()
+    #     if not salary_detail:
+    #         match = re.search(r"(?i)(?:Salary|Compensation|Pay|Hourly Range|Annual Pay|Rate):\s*\$?([\w\s\.,\-]+)", description)
+    #         if match:
+    #             salary_detail = match.group(1).strip()
 
-        if not company_detail:
-            match = re.search(r"(?i)(?:Company|Employer):\s*([A-Za-z0-9&\.\-\s]+)", description)
-            if match:
-                company_detail = match.group(1).strip()
+    #     if not company_detail:
+    #         match = re.search(r"(?i)(?:Company|Employer):\s*([A-Za-z0-9&\.\-\s]+)", description)
+    #         if match:
+    #             company_detail = match.group(1).strip()
 
-        # Fallback to passed-in values if still empty
-        title = title_detail or title
-        company = company_detail or company
-        location = location_detail or location
-        salary = salary_detail or salary
+    #     # Fallback to passed-in values if still empty
+    #     title = title_detail or title
+    #     company = company_detail or company
+    #     location = location_detail or location
+    #     salary = salary_detail or salary
 
-        yield {
-            "title": (title or "").strip(),
-            "company": (company or "").strip(),
-            "location": (location or "").strip(),
-            "salary": (salary or "").strip(),
-            "posted": (posted_text or "").strip(),
-            "description": description,
-            "url": response.url,
-        }
+    #     yield {
+    #         "title": (title or "").strip(),
+    #         "company": (company or "").strip(),
+    #         "location": (location or "").strip(),
+    #         "salary": (salary or "").strip(),
+    #         "posted": (posted_text or "").strip(),
+    #         "description": description,
+    #         "url": response.url,
+    #     }
 
     def handle_error(self, failure):
         self.log(f"❌ Request failed: {failure.request.url}")
