@@ -86,16 +86,32 @@ class IndeedSpider(scrapy.Spider):
             # salary = " ".join(p.strip() for p in salary_parts if p.strip()) or "Not disclosed"
 
             # --- Salary (New Selector) ---
+            # salary_parts = card.css(
+            #     "div.salary-snippet-container *::text, "
+            #     "div.metadata.salary-snippet-container *::text, "
+            #     "span[data-testid*='salary']::text, "
+            #     "span[class*='js-match-insights-provider']::text, "
+            #     "div[data-testid*='jobsearch-OtherJobDetailsContainer'] *::text"
+            # ).getall()
+            
+            # salary = " ".join(p.strip() for p in salary_parts if p.strip())
+            # salary = salary or "Not disclosed"
+
+            # --- Salary Extraction ---
             salary_parts = card.css(
+                "div#salaryInfoAndJobType span::text, "
+                "div[data-testid='jobsearch-OtherJobDetailsContainer'] span::text, "
                 "div.salary-snippet-container *::text, "
                 "div.metadata.salary-snippet-container *::text, "
-                "span[data-testid*='salary']::text, "
-                "span[class*='js-match-insights-provider']::text, "
-                "div[data-testid*='jobsearch-OtherJobDetailsContainer'] *::text"
+                "span.estimated-salary::text, "
+                "div[data-testid='attribute_snippet_text']::text"
             ).getall()
             
             salary = " ".join(p.strip() for p in salary_parts if p.strip())
-            salary = salary or "Not disclosed"
+            
+            if not salary:
+                salary = "Not disclosed"
+
 
 
 
@@ -124,7 +140,7 @@ class IndeedSpider(scrapy.Spider):
                 "title": (title or "").strip(),
                 "company": (company or "").strip(),
                 "location": (location or "").strip(),
-                "salary": salary.strip(),
+                "salary": (salary or "").strip(),
                 "posted": posted,
                 "url": job_url,
             }
