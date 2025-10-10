@@ -63,10 +63,18 @@ class IndeedSpider(scrapy.Spider):
             location_parts = card.css("div.companyLocation *::text, div[data-testid='text-location'] *::text").getall()
             location = " ".join(p.strip() for p in location_parts if p.strip())
             # Salary can appear under several classes
+            # salary_parts = card.css(
+            #     "div.salary-snippet-container *::text, div[data-testid='attribute_snippet_text']::text"
+            # ).getall()
+            # salary = " ".join(p.strip() for p in salary_parts if p.strip())
             salary_parts = card.css(
-                "div.salary-snippet-container *::text, div[data-testid='attribute_snippet_text']::text"
+            "div.salary-snippet-container *::text, "
+            "div[data-testid='attribute_snippet_text']::text, "
+            "div#salaryInfoAndJobType *::text, "
+            "div[data-testid='jobsearch-OtherJobDetailsContainer'] *::text"
             ).getall()
             salary = " ".join(p.strip() for p in salary_parts if p.strip())
+
             posted = card.css("span.date::text, span.jobsearch-HiringInsights-entry--text::text").get()
             job_url = card.css("a::attr(href)").get()
 
