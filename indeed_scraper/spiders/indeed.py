@@ -56,11 +56,17 @@ class IndeedSpider(scrapy.Spider):
             # Extract job metadata
             title = card.css('h2.jobTitle span::text').get()
             company = card.css('span.companyName::text').get()
-            location = card.css('div.companyLocation::text').get()
-            salary = card.css('div.salary-snippet-container span::text').get()
+            # ✅ Combine multiple lines of location (e.g., “New York, NY” and “Remote”)
+            location_parts = card.css('div.companyLocation *::text').getall()
+            location = " ".join(part.strip() for part in location_parts if part.strip())
+            # location = card.css('div.companyLocation::text').get()
+            # Capture all salary text, not just the first span
+            salary_parts = card.css('div.salary-snippet-container *::text').getall()
+            salary = " ".join(part.strip() for part in salary_parts if part.strip())
+            # salary = card.css('div.salary-snippet-container span::text').get()
             posted = card.css('span.date::text, span.jobsearch-HiringInsights-entry--text::text').get()
             job_url = card.css('h2.jobTitle a::attr(href)').get()
-            posted_text = card.css('span.date::text, span.jobsearch-HiringInsights-entry--text::text').get()
+            # posted_text = card.css('span.date::text, span.jobsearch-HiringInsights-entry--text::text').get()
 
             # ✅ Only include jobs posted today or just posted
             # if posted_text:
@@ -69,7 +75,7 @@ class IndeedSpider(scrapy.Spider):
             #         self.log(f"⏭ Skipping old job ({posted_text}) - {title}")
             #         continue
 
-            if not job_url:
+            if not job_url or not title:
                 continue
 
             if job_url.startswith("/"):
