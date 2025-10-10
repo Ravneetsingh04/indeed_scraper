@@ -62,55 +62,59 @@ class IndeedSpider(scrapy.Spider):
             # Capture multiline locations (e.g., "New York, NY" + "Remote")
             location_parts = card.css("div.companyLocation *::text, div[data-testid='text-location'] *::text").getall()
             location = " ".join(p.strip() for p in location_parts if p.strip())
-            # Salary can appear under several classes
-            # salary_parts = card.css(
-            #     "div.salary-snippet-container *::text, div[data-testid='attribute_snippet_text']::text"
-            # ).getall()
-            # salary = " ".join(p.strip() for p in salary_parts if p.strip())
-            # salary_parts = card.css(
-            # "div.salary-snippet-container *::text, "
-            # "div[data-testid='attribute_snippet_text']::text, "
-            # "div#salaryInfoAndJobType *::text, "
-            # "div[data-testid='jobsearch-OtherJobDetailsContainer'] *::text"
-            # ).getall()
-            # salary = " ".join(p.strip() for p in salary_parts if p.strip())
+            
 
-            # Capture salary variants directly visible on the listing page
+            # --- Salary Extraction ---
             # salary_parts = card.css(
-            #     "div.metadata.salary-snippet-container *::text, "
+            #     "div#salaryInfoAndJobType span::text, "
+            #     "div[data-testid='jobsearch-OtherJobDetailsContainer'] span::text, "
             #     "div.salary-snippet-container *::text, "
+            #     "div.metadata.salary-snippet-container *::text, "
             #     "span.estimated-salary::text, "
             #     "div[data-testid='attribute_snippet_text']::text"
             # ).getall()
             
-            # salary = " ".join(p.strip() for p in salary_parts if p.strip()) or "Not disclosed"
-
-            # --- Salary (New Selector) ---
-            # salary_parts = card.css(
-            #     "div.salary-snippet-container *::text, "
-            #     "div.metadata.salary-snippet-container *::text, "
-            #     "span[data-testid*='salary']::text, "
-            #     "span[class*='js-match-insights-provider']::text, "
-            #     "div[data-testid*='jobsearch-OtherJobDetailsContainer'] *::text"
-            # ).getall()
-            
             # salary = " ".join(p.strip() for p in salary_parts if p.strip())
-            # salary = salary or "Not disclosed"
+            
+            # if not salary:
+            #     salary = "Not disclosed"
 
             # --- Salary Extraction ---
             salary_parts = card.css(
-                "div#salaryInfoAndJobType span::text, "
+                "div[id='salaryInfoAndJobType'] span::text, "
+                "div[data-testid='attribute_snippet_text']::text, "
                 "div[data-testid='jobsearch-OtherJobDetailsContainer'] span::text, "
-                "div.salary-snippet-container *::text, "
-                "div.metadata.salary-snippet-container *::text, "
-                "span.estimated-salary::text, "
-                "div[data-testid='attribute_snippet_text']::text"
+                "div[data-testid='salary-snippet-container'] span::text, "
+                "span.css-1oc7tea::text, "
+                "span[data-testid='attribute_snippet_text']::text"
             ).getall()
             
             salary = " ".join(p.strip() for p in salary_parts if p.strip())
             
+            # --- Debug: if no salary found, dump the salary-related HTML ---
+            if not salary:
+                raw_salary_html = card.css(
+                    "div[id='salaryInfoAndJobType'], "
+                    "div[data-testid='jobsearch-OtherJobDetailsContainer'], "
+                    "div[data-testid='attribute_snippet_text'], "
+                    "div[data-testid='salary-snippet-container'], "
+                    "span.css-1oc7tea"
+                ).get()
+            
+                if raw_salary_html:
+                    self.log(f"🧩 Salary HTML found but not parsed correctly: {raw_salary_html[:200]}...")
+                else:
+                    self.log("⚠️ No salary HTML detected in this job card snippet.")
+            
+            # --- Backup extraction ---
+            if not salary:
+                salary = card.xpath(
+                    ".//*[contains(text(), '$') or contains(text(), 'hour') or contains(text(), 'year')]/text()"
+                ).get(default="").strip()
+            
             if not salary:
                 salary = "Not disclosed"
+
 
 
 
