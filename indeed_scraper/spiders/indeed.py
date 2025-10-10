@@ -52,7 +52,7 @@ class IndeedSpider(scrapy.Spider):
         else:
             self.log(f"✅ Found {len(job_cards)} job cards.")
 
-        for card in job_cards[:5]:
+        for card in job_cards[:3]:
             title = (
                 card.css("h2.jobTitle span::text").get()
                 or card.css("h2 span::text").get()
@@ -62,31 +62,40 @@ class IndeedSpider(scrapy.Spider):
             # Capture multiline locations (e.g., "New York, NY" + "Remote")
             location_parts = card.css("div.companyLocation *::text, div[data-testid='text-location'] *::text").getall()
             location = " ".join(p.strip() for p in location_parts if p.strip())
-            # Salary can appear under several classes
-            # salary_parts = card.css(
-            #     "div.salary-snippet-container *::text, div[data-testid='attribute_snippet_text']::text"
-            # ).getall()
-            # salary = " ".join(p.strip() for p in salary_parts if p.strip())
-            # salary_parts = card.css(
-            # "div.salary-snippet-container *::text, "
-            # "div[data-testid='attribute_snippet_text']::text, "
-            # "div#salaryInfoAndJobType *::text, "
-            # "div[data-testid='jobsearch-OtherJobDetailsContainer'] *::text"
-            # ).getall()
-            # salary = " ".join(p.strip() for p in salary_parts if p.strip())
 
-            # Capture salary variants directly visible on the listing page
+            # --- Salary ---
             salary_parts = card.css(
-                "div.metadata.salary-snippet-container *::text, "
                 "div.salary-snippet-container *::text, "
+                "div.metadata.salary-snippet-container *::text, "
+                "div[data-testid='attribute_snippet_text']::text, "
+                "span[data-testid='salaryText']::text, "
                 "span.estimated-salary::text, "
-                "div[data-testid='attribute_snippet_text']::text"
+                "div[data-testid='jobsearch-OtherJobDetailsContainer'] *::text"
             ).getall()
             
-            salary = " ".join(p.strip() for p in salary_parts if p.strip()) or "Not disclosed"
+            # Clean and merge salary text
+            salary = " ".join(p.strip() for p in salary_parts if p.strip())
+            
+            # Salary cleanup: remove unwanted job-type suffixes like "- Contract"
+            if "-" in salary:
+                salary = salary.split(" - ")[0].strip()
+            
+            if not salary:
+                salary = "Not disclosed"
+            
+            # --- Posted Date ---
+            posted = (
+                card.css("span.date::text").get()
+                or card.css("span[data-testid='myJobsStateDate']::text").get()
+                or card.css("span.jobsearch-HiringInsights-entry--text::text").get()
+            )
+            
+            # Clean up posted text
+            if posted:
+                posted = posted.replace("Posted", "").replace("EmployerActive", "").strip()
+            else:
+                posted = "N/A"
 
-
-            posted = card.css("span.date::text, span.jobsearch-HiringInsights-entry--text::text").get()
             job_url = card.css("a::attr(href)").get()
 
             if not job_url:
