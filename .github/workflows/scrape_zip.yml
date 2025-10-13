@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # Allows workflow to push CSV results back to repo
+  contents: write  # Allows workflow to push CSV back to repo
 
 jobs:
   scrape_jobs:
@@ -28,37 +28,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install scrapy requests pandas
 
-      - name: Run Scrapy spider and merge results
-        env:
-          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
+      - name: Run ZipRecruiter Spider (First Page Only)
         working-directory: indeed_scraper
         run: |
-          echo "Running ZipRecruiter Scrapy with API key..."
-          mkdir -p $GITHUB_WORKSPACE/output
-          
-          # You can override query/location via -a flags if needed
-          # e.g., scrapy crawl ziprecruiter -a query="Python Developer" -a location="Remote"
-          scrapy crawl ziprecruiter -o $GITHUB_WORKSPACE/output/new_zip_jobs.csv
+          echo "🚀 Running ZipRecruiter spider (no API)..."
+          scrapy crawl ziprecruiter -O $GITHUB_WORKSPACE/zip_jobs.csv
 
-          echo "Scrapy completed. Checking output:"
-          ls -lh $GITHUB_WORKSPACE/output/
-          head -n 10 $GITHUB_WORKSPACE/output/new_zip_jobs.csv || echo "File empty!"
-
-          # Merge with existing CSV (if exists) at repo root
-          cd $GITHUB_WORKSPACE
-          if [ -f zip_jobs.csv ]; then
-            echo "Merging old and new ZipRecruiter listings..."
-            # Skip header from new_zip_jobs.csv before appending
-            tail -n +2 output/new_zip_jobs.csv >> zip_jobs.csv
-          else
-            echo "No existing file found, creating a new one..."
-            cp output/new_zip_jobs.csv zip_jobs.csv
-          fi
+          echo "✅ Scraping completed."
+          ls -lh $GITHUB_WORKSPACE/zip_jobs.csv
+          head -n 10 $GITHUB_WORKSPACE/zip_jobs.csv || echo "❗ CSV is empty!"
 
       - name: Commit and push results
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add zip_jobs.csv || echo "No file to add"
-          git commit -m "Append new ZipRecruiter jobs" || echo "No changes to commit"
+          git commit -m "Update ZipRecruiter job data" || echo "No changes to commit"
           git push
