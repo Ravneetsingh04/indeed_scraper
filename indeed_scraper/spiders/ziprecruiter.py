@@ -97,7 +97,7 @@ class ZipRecruiterSpider(scrapy.Spider):
 
     def parse_search(self, response):
         with open("debug_zip.html", "w", encoding="utf-8") as f:
-        f.write(response.text)
+            f.write(response.text)
         status = response.status
         orig_url = response.meta.get("orig_url")
         retry_count = response.meta.get("retry_count", 0)
