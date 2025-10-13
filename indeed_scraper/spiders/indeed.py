@@ -53,7 +53,7 @@ class IndeedSpider(scrapy.Spider):
         else:
             self.log(f"✅ Found {len(job_cards)} job cards.")
 
-        for card in job_cards[:5]:
+        for card in job_cards[:10]:
             title = (
                 card.css("h2.jobTitle span::text").get()
                 or card.css("h2 span::text").get()
