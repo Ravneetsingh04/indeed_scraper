@@ -74,27 +74,27 @@ class ZipRecruiterSpider(scrapy.Spider):
 
     # First page only
     def start_requests(self):
-    q = quote_plus(self.query)
-    loc = quote_plus(self.location)
-    # Try jobs listing URL first (less likely to be the candidate-only page)
-    zr_url = f"https://www.ziprecruiter.com/jobs-search?search={q}&location={loc}"
-
-    ua = random.choice(UA_POOL)
-    url = proxy_url(zr_url, ua)
-    self.api_calls += 1
-    self.logger.info(f"📡 ScraperAPI call #{self.api_calls}/{MAX_API_CALLS}: {zr_url} (render=true)")
-
-    yield scrapy.Request(
-        url,
-        callback=self.parse_search,
-        headers={"User-Agent": ua},
-        meta={
-            "orig_url": zr_url,
-            "retry_count": 0,
-            "ua": ua,
-        },
-        dont_filter=True,
-    )
+        q = quote_plus(self.query)
+        loc = quote_plus(self.location)
+        # Try jobs listing URL first (less likely to be the candidate-only page)
+        zr_url = f"https://www.ziprecruiter.com/jobs-search?search={q}&location={loc}"
+    
+        ua = random.choice(UA_POOL)
+        url = proxy_url(zr_url, ua)
+        self.api_calls += 1
+        self.logger.info(f"📡 ScraperAPI call #{self.api_calls}/{MAX_API_CALLS}: {zr_url} (render=true)")
+    
+        yield scrapy.Request(
+            url,
+            callback=self.parse_search,
+            headers={"User-Agent": ua},
+            meta={
+                "orig_url": zr_url,
+                "retry_count": 0,
+                "ua": ua,
+            },
+            dont_filter=True,
+        )
 
 
     def parse_search(self, response):
