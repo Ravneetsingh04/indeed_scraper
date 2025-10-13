@@ -26,17 +26,17 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install "scrapy>=2.10,<2.14" pandas
+          pip install "scrapy>=2.10,<2.14" pandas brotli brotlicffi
 
-      # IMPORTANT: run from repo root so scrapy.cfg is discovered
-      - name: Run ZipRecruiter spider (first page only) to temp file
+      - name: Run ZipRecruiter spider via ScraperAPI (first page only) → temp file
+        env:
+          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
         run: |
-          echo "🚀 Running ZipRecruiter spider (direct HTML, first page only)..."
-          # Write to a temp file first, only replace main CSV if we scraped anything
+          echo "🚀 Running ZipRecruiter spider through ScraperAPI (render=true)..."
           TMP_OUT="zip_jobs_new.csv"
-
-          # Increase verbosity and explicitly ignore robots.txt at runtime
           scrapy crawl ziprecruiter \
+            -a query="AI Developer" \
+            -a location="New York, NY" \
             -s ROBOTSTXT_OBEY=False \
             -s LOG_LEVEL=INFO \
             -O "$TMP_OUT" | tee scraper.log
@@ -45,7 +45,6 @@ jobs:
           ls -lh "$TMP_OUT" || true
           head -n 10 "$TMP_OUT" || echo "❗ No rows in temp output."
 
-          # If the temp file has data (size > 0), replace main CSV; otherwise keep old file
           if [ -s "$TMP_OUT" ]; then
             echo "📦 New data found. Updating zip_jobs.csv"
             mv "$TMP_OUT" zip_jobs.csv
