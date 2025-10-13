@@ -22,7 +22,7 @@ class IndeedSpider(scrapy.Spider):
         self.seen_urls = set()
 
     def start_requests(self):
-        search_query = "AI Developer"
+        search_query = "Python Developer"
         search_location = "New York, NY"
         indeed_url = f"https://www.indeed.com/jobs?q={search_query}&l={search_location}"
         yield from self.make_api_request(indeed_url, self.parse)
