@@ -1,64 +1,56 @@
 import scrapy
-from urllib.parse import urlencode
-import os
+from urllib.parse import quote_plus
 from datetime import datetime
-
-API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
-MAX_API_CALLS = 5
-
-
-def get_proxy_url(url):
-    payload = {"api_key": API_KEY, "url": url, "render": "true"}
-    return "https://api.scraperapi.com/?" + urlencode(payload)
 
 
 class ZipRecruiterSpider(scrapy.Spider):
     name = "ziprecruiter"
 
+    # We bypass robots.txt here because ZR disallows bots; otherwise Scrapy will skip the page.
+    custom_settings = {
+        "ROBOTSTXT_OBEY": False,
+        "DOWNLOAD_DELAY": 1.0,
+        "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
+        "DEFAULT_REQUEST_HEADERS": {
+            # A realistic desktop UA helps reduce soft-blocks
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        },
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.pageCount = 0
-        self.api_calls = 0
-        self.seen_urls = set()
-
-        # optionally allow overrides via -a query="..." -a location="..."
+        # allow -a query="..." -a location="..."
         self.query = kwargs.get("query", "AI Developer")
         self.location = kwargs.get("location", "New York, NY")
+        self.seen_urls = set()
 
     def start_requests(self):
-        q = self.query.replace(" ", "+")
-        loc = self.location.replace(" ", "+")
-        zr_url = f"https://www.ziprecruiter.com/candidate/search?search={q}&location={loc}"
-        yield from self.make_api_request(zr_url, self.parse)
-
-    def make_api_request(self, url, callback, **kwargs):
-        if self.api_calls >= MAX_API_CALLS:
-            self.log(f"⛔ API limit reached ({self.api_calls}/{MAX_API_CALLS}). Stopping crawl.")
-            return
-        self.api_calls += 1
-        self.log(f"📡 API Call #{self.api_calls}: {url}")
-        yield scrapy.Request(
-            get_proxy_url(url),
-            callback=callback,
-            errback=self.handle_error,
-            dont_filter=True,
-            **kwargs,
-        )
+        q = quote_plus(self.query)
+        loc = quote_plus(self.location)
+        url = f"https://www.ziprecruiter.com/candidate/search?search={q}&location={loc}"
+        self.logger.info(f"🌐 Fetching first page only: {url}")
+        yield scrapy.Request(url, callback=self.parse)
 
     def parse(self, response):
-        self.pageCount += 1
-        self.log(f"--- Fetched page {self.pageCount}: {response.url} (status {response.status})")
+        if response.status != 200:
+            self.logger.warning(f"Non-200 status {response.status} for {response.url}")
+            return
 
-        # ZR card selectors (multiple fallbacks for resiliency)
+        # Try multiple card patterns for resilience
         cards = response.css(
             "article.job_result, div.job_result, div.job_content, div[data-testid='job_card']"
         )
-        if not cards:
-            self.log("⚠ No job cards found — check HTML structure.")
-        else:
-            self.log(f"✅ Found {len(cards)} job cards.")
+        self.logger.info(f"Found {len(cards)} potential job cards on the first page.")
 
-        for card in cards[:20]:
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        for card in cards:
             # Title
             title = (
                 card.css("a.job_link::text").get()
@@ -76,30 +68,26 @@ class ZipRecruiterSpider(scrapy.Spider):
             )
             company = (company or "").strip()
 
-            # Location (ZR often has compact location spans/divs)
+            # Location
             loc_parts = card.css(
                 "span.job_location::text, div.job_location::text, [data-testid='job-card-location'] *::text"
             ).getall()
             location = " ".join(p.strip() for p in loc_parts if p.strip())
 
-            # Salary
+            # Salary (best-effort)
             salary_parts = card.css(
                 "span.job_salary::text, div.job_salary::text, [data-testid='job-card-salary'] *::text"
             ).getall()
             salary = " ".join(p.strip() for p in salary_parts if p.strip())
-
             if not salary:
-                # Backup: scan visible text for monetary/time patterns
                 salary = card.xpath(
                     ".//*[contains(., '$') or contains(., 'hour') or contains(., 'year') or contains(., 'month')]/text()"
-                ).get(default="").strip()
-            if not salary:
-                salary = "Not disclosed"
+                ).get(default="").strip() or "Not disclosed"
 
-            # Posted date (ZR sometimes shows 'X days ago'); default to today for consistency
-            posted = datetime.now().strftime("%Y-%m-%d")
+            # Posted date (ZR often shows 'X days ago'; we record scrape date for stability)
+            posted = today
 
-            # URL
+            # Job URL
             href = (
                 card.css("a.job_link::attr(href)").get()
                 or card.css("a[data-testid='job_link']::attr(href)").get()
@@ -108,11 +96,9 @@ class ZipRecruiterSpider(scrapy.Spider):
             if not href:
                 continue
 
-            if href.startswith("/"):
-                job_url = response.urljoin(href)
-            else:
-                job_url = href
+            job_url = response.urljoin(href)
 
+            # De-dupe
             if job_url in self.seen_urls:
                 continue
             self.seen_urls.add(job_url)
@@ -126,22 +112,7 @@ class ZipRecruiterSpider(scrapy.Spider):
                 "url": job_url,
             }
 
-        # Pagination
-        if self.api_calls < MAX_API_CALLS:
-            next_page = response.css(
-                "a[rel='next']::attr(href), a.next::attr(href), a.pagination_next::attr(href), "
-                "a[aria-label='Next']::attr(href)"
-            ).get()
-            if next_page:
-                next_url = response.urljoin(next_page)
-                yield from self.make_api_request(next_url, self.parse)
-
-    def handle_error(self, failure):
-        try:
-            self.log(f"❌ Request failed: {failure.request.url}")
-        except Exception:
-            self.log("❌ Request failed (no URL available).")
-
-    def closed(self, reason):
-        self.log(f"🧾 Total ScraperAPI calls made: {self.api_calls}/{MAX_API_CALLS}")
-        self.log(f"📊 Total unique jobs scraped: {len(self.seen_urls)}")
+        # First page only → no pagination
+        self.logger.info(
+            f"✅ First page scraped. Unique jobs yielded: {len(self.seen_urls)}"
+        )
