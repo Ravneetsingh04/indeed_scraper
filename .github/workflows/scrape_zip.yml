@@ -63,3 +63,11 @@ jobs:
           git add zip_jobs.csv || true
           git commit -m "Update ZipRecruiter job data" || echo "No changes to commit"
           git push
+
+      - name: Upload debug HTML
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: debug_zip_html
+          path: debug_zip.html
+
