@@ -2,11 +2,11 @@ name: Scrape ZipRecruiter Jobs Daily
 
 on:
   schedule:
-    - cron: '0 10 * * *'  # 10:00 AM UTC daily
+    - cron: '0 10 * * *'  # Runs daily at 10:00 AM UTC
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write  # Allow workflow to push CSV results
 
 jobs:
   scrape_jobs:
@@ -26,48 +26,38 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install "scrapy>=2.10,<2.14" pandas brotli brotlicffi
+          pip install scrapy requests pandas
 
-      - name: Run ZipRecruiter spider via ScraperAPI (first page only) → temp file
+      - name: Run ZipRecruiter Scrapy spider
         env:
           SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
+        working-directory: .   # Use root if spider is in root/spiders
         run: |
-          echo "🚀 Running ZipRecruiter spider through ScraperAPI (render=true)..."
-          TMP_OUT="zip_jobs_new.csv"
-          scrapy crawl ziprecruiter \
-            -a query="AI Developer" \
-            -a location="New York, NY" \
-            -s ROBOTSTXT_OBEY=False \
-            -s LOG_LEVEL=INFO \
-            -O "$TMP_OUT" | tee scraper.log
+          echo "Running ZipRecruiter spider using ScraperAPI..."
+          mkdir -p $GITHUB_WORKSPACE/output
+          
+          # Run spider to output CSV
+          scrapy crawl ziprecruiter -o $GITHUB_WORKSPACE/output/new_zip_jobs.csv
 
-          echo "✅ Scrapy finished. Preview temp output (if any):"
-          ls -lh "$TMP_OUT" || true
-          head -n 10 "$TMP_OUT" || echo "❗ No rows in temp output."
+          echo "Scrapy completed. Checking output:"
+          ls -lh $GITHUB_WORKSPACE/output/
+          head -n 10 $GITHUB_WORKSPACE/output/new_zip_jobs.csv || echo "File empty!"
 
-          if [ -s "$TMP_OUT" ]; then
-            echo "📦 New data found. Updating zip_jobs.csv"
-            mv "$TMP_OUT" zip_jobs.csv
+          # Move to final CSV file
+          cd $GITHUB_WORKSPACE
+          if [ -f zip_jobs.csv ]; then
+            echo "Appending new jobs to existing zip_jobs.csv..."
+            # Skip header from new output
+            tail -n +2 output/new_zip_jobs.csv >> zip_jobs.csv
           else
-            echo "⚠️ No data scraped; leaving existing zip_jobs.csv unchanged."
-            rm -f "$TMP_OUT"
+            echo "Creating new zip_jobs.csv..."
+            cp output/new_zip_jobs.csv zip_jobs.csv
           fi
-
-          echo "📄 Final file status:"
-          ls -lh zip_jobs.csv || echo "zip_jobs.csv does not exist."
 
       - name: Commit and push results
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add zip_jobs.csv || true
-          git commit -m "Update ZipRecruiter job data" || echo "No changes to commit"
+          git add zip_jobs.csv || echo "No file to add"
+          git commit -m "Append new ZipRecruiter jobs" || echo "No changes to commit"
           git push
-
-      - name: Upload debug HTML
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug_zip_html
-          path: debug_zip.html
-
