@@ -114,57 +114,57 @@ class ZipRecruiterSpider(scrapy.Spider):
         self.pageCount += 1
         self.log(f"--- Fetched page {self.pageCount}: {response.url} (status {response.status})")
     
-        # Detect job cards — ZipRecruiter uses <article class="job_result"> or <div class="job_content">
-        job_cards = response.css("article.job_result, div.job_content")
+        # --- Job Card Detection ---
+        job_cards = response.css("article")
     
         if not job_cards:
             self.log("⚠ No job cards found — check HTML structure.")
         else:
             self.log(f"✅ Found {len(job_cards)} job cards.")
     
-        for card in job_cards[:5]:
-            # --- Job Title ---
+        for card in job_cards[:10]:
+            # --- Title Extraction ---
             title = (
-                card.css("a.job_link::text").get()
-                or card.css("a[data-testid='job_title']::text").get()
-                or card.css("a::text").get()
+                card.css("a::text").get()
+                or card.css("h2::text").get()
+                or card.css("[data-testid='job-card-title']::text").get()
             )
+            if title:
+                title = title.strip()
     
-            # --- Company ---
+            # --- Company Extraction ---
             company = (
-                card.css("a.t_org_link::text").get()
-                or card.css("div.t_org_link span::text").get()
+                card.css("[data-testid='job-card-company-name']::text").get()
+                or card.css("a[href*='/c/']::text").get()
                 or card.css("span.job_company::text").get()
             )
+            company = (company or "").strip() or "Unknown company"
     
-            # --- Location ---
-            location_parts = card.css(
-                "span.job_location::text, div.job_location *::text, span[data-testid='job_location']::text"
-            ).getall()
-            location = " ".join(p.strip() for p in location_parts if p.strip())
+            # --- Location Extraction ---
+            location_parts = card.css("[data-testid='job-card-location'] *::text").getall()
+            location = " ".join(p.strip() for p in location_parts if p.strip()) or "Not specified"
     
             # --- Salary Extraction ---
             salary_parts = card.css(
-                "span.job_salary::text, "
-                "div[data-testid='salary_estimate']::text, "
+                "[data-testid='job-card-salary'] *::text, "
                 "span[data-testid='estimated-salary']::text, "
                 "div.salary_estimate *::text, "
-                "div.t_right span::text"
+                "span.job_salary::text"
             ).getall()
     
             salary = " ".join(p.strip() for p in salary_parts if p.strip())
     
-            # --- Debug salary ---
+            # Debug salary if empty
             if not salary:
                 raw_salary_html = card.css(
-                    "span.job_salary, div[data-testid='salary_estimate'], div.salary_estimate"
+                    "[data-testid='job-card-salary'], div.salary_estimate, span[data-testid='estimated-salary']"
                 ).get()
                 if raw_salary_html:
                     self.log(f"🧩 Salary HTML found but not parsed correctly: {raw_salary_html[:200]}...")
                 else:
                     self.log("⚠️ No salary HTML detected in this job card snippet.")
     
-            # --- Backup extraction ---
+            # --- Backup salary extraction ---
             if not salary:
                 salary = card.xpath(
                     ".//*[contains(text(), '$') or contains(text(), 'hour') or contains(text(), 'year')]/text()"
@@ -176,19 +176,20 @@ class ZipRecruiterSpider(scrapy.Spider):
             # --- Posted date ---
             posted = datetime.now().strftime("%Y-%m-%d")
     
-            # --- Job URL ---
-            job_url = card.css("a.job_link::attr(href), a::attr(href)").get()
+            # --- Job URL Extraction ---
+            job_url = card.css("a::attr(href)").get()
             if not job_url:
                 continue
     
             if job_url.startswith("/"):
                 job_url = f"https://www.ziprecruiter.com{job_url}"
     
+            # --- Duplicate Handling ---
             if job_url in self.seen_urls:
                 continue
             self.seen_urls.add(job_url)
     
-            # --- Yielding structured job data ---
+            # --- Final Output ---
             yield {
                 "title": (title or "").strip(),
                 "company": (company or "").strip(),
@@ -206,6 +207,7 @@ class ZipRecruiterSpider(scrapy.Spider):
             if next_page:
                 next_url = response.urljoin(next_page)
                 yield from self.make_api_request(next_url, self.parse)
+
 
 
     def handle_error(self, failure):
