@@ -23,7 +23,7 @@ class ZipRecruiterSpider(scrapy.Spider):
 
     def start_requests(self):
         search_query = "Python Developer"
-        search_location = "New York, NY"
+        search_location = "India"
 
         # ZipRecruiter Search URL
         zr_url = f"https://www.ziprecruiter.com/jobs-search?search={search_query.replace(' ', '+')}&location={search_location.replace(' ', '+')}"
