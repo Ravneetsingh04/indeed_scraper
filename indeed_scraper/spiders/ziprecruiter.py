@@ -44,6 +44,9 @@ class ZipRecruiterSpider(scrapy.Spider):
         )
 
     def parse(self, response):
+        with open("zip_debug.html", "wb") as f:
+            f.write(response.body)
+        self.logger.debug("Saved raw HTML to zip_debug.html for inspection")
         self.pageCount += 1
         self.log(f"--- Fetched page {self.pageCount}: {response.url} (status {response.status})")
 
