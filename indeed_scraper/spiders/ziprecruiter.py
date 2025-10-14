@@ -56,7 +56,7 @@ class ZipRecruiterSpider(scrapy.Spider):
         else:
             self.log(f"✅ Found {len(job_cards)} job cards.")
     
-        for card in job_cards[:5]:
+        for card in job_cards[:10]:
             # --- Job Title ---
             title = (
                 card.css("h2::text").get()
