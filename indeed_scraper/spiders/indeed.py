@@ -8,18 +8,30 @@ MAX_API_CALLS = 5
 
 
 def get_proxy_url(url):
-    payload = {"api_key": API_KEY, "url": url, "render": "true"}
+    # PROXY URL BUILDER (Removed render=true)
+    payload = {"api_key": API_KEY, "url": url}
     return "https://api.scraperapi.com/?" + urlencode(payload)
 
 
 class IndeedSpider(scrapy.Spider):
     name = "indeed"
 
+    # CUSTOM SCRAPY SETTINGS (Disable retries & robots.txt)
+    
+    custom_settings = {
+        "RETRY_ENABLED": False,          # avoid retrying failed ScraperAPI calls
+        "ROBOTSTXT_OBEY": False,         # don't waste calls checking robots.txt
+        "DOWNLOAD_DELAY": 1,             # polite delay between requests
+        "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
+        "CLOSESPIDER_PAGECOUNT": 5       # safety stop during testing
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.pageCount = 0
         self.api_calls = 0
         self.seen_urls = set()
+        self.visited_pages = set()  # Added to prevent duplicate pagination calls
 
     def start_requests(self):
         search_query = "Python Developer"
@@ -38,6 +50,8 @@ class IndeedSpider(scrapy.Spider):
             get_proxy_url(url),
             callback=callback,
             errback=self.handle_error,
+            dont_filter=True,                   # avoid duplicate filtering
+            meta={"dont_redirect": True},       # disable redirects (each costs credits)
             **kwargs,
         )
 
@@ -53,7 +67,7 @@ class IndeedSpider(scrapy.Spider):
         else:
             self.log(f"✅ Found {len(job_cards)} job cards.")
 
-        for card in job_cards[:10]:
+        for card in job_cards[:3]:
             title = (
                 card.css("h2.jobTitle span::text").get()
                 or card.css("h2 span::text").get()
@@ -146,8 +160,15 @@ class IndeedSpider(scrapy.Spider):
         if self.api_calls < MAX_API_CALLS:
             next_page = response.css('a[aria-label="Next Page"]::attr(href), a[data-testid="pagination-page-next"]::attr(href)').get()
             if next_page:
-                next_url = response.urljoin(next_page)
+                # Always join against Indeed’s domain — not ScraperAPI’s
+                next_url = urljoin("https://www.indeed.com", next_page)
+
+                # ✅ Prevent duplicate or recursive pagination
+                if next_url not in self.visited_pages:
+                    self.visited_pages.add(next_url)
                 yield from self.make_api_request(next_url, self.parse)
+                else:
+                    self.log(f"🔁 Skipping duplicate page: {next_url}")
 
     def handle_error(self, failure):
         self.log(f"❌ Request failed: {failure.request.url}")
