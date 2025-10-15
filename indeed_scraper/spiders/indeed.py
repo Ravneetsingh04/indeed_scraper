@@ -166,7 +166,7 @@ class IndeedSpider(scrapy.Spider):
                 # ✅ Prevent duplicate or recursive pagination
                 if next_url not in self.visited_pages:
                     self.visited_pages.add(next_url)
-                yield from self.make_api_request(next_url, self.parse)
+                    yield from self.make_api_request(next_url, self.parse)
                 else:
                     self.log(f"🔁 Skipping duplicate page: {next_url}")
 
