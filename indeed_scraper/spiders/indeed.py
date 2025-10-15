@@ -55,7 +55,7 @@ class IndeedSpider(scrapy.Spider):
         print("="*80 + "\n")
         self.log(f"📡 API Call #{self.api_calls}: {url}")
         yield scrapy.Request(
-            proxy_url(url),
+            proxy_url,
             callback=callback,
             errback=self.handle_error,
             dont_filter=True,                   # avoid duplicate filtering
