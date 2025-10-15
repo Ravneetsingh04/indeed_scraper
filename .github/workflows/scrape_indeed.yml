@@ -30,10 +30,17 @@ jobs:
 
       - name: Run Scrapy spider and merge results
         env:
+<<<<<<< HEAD
           SCRAPINGBEE_API_KEY: ${{ secrets.SCRAPINGBEE_API_KEY }}   # ✅ changed here
         working-directory: indeed_scraper
         run: |
           echo "Running Scrapy with ScrapingBee API key..."
+=======
+          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
+        working-directory: indeed_scraper
+        run: |
+          echo "Running Scrapy with API key..."
+>>>>>>> 2ae51fd (Initial commit - ScrapingBee integration)
           mkdir -p $GITHUB_WORKSPACE/output
           
           # Run scraper to a temporary file

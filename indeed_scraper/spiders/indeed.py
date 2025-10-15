@@ -66,6 +66,7 @@ class IndeedSpider(scrapy.Spider):
             headers={
                 "User-Agent": (
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+<<<<<<< HEAD
                     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0 Safari/537.36"
                 )
             },
@@ -168,3 +169,6 @@ class IndeedSpider(scrapy.Spider):
     def closed(self, reason):
         self.log(f"🧾 Total ScrapingBee calls made: {self.api_calls}/{MAX_API_CALLS}")
         self.log(f"📊 Total unique jobs scraped: {len(self.seen_urls)}")
+=======
+                    "AppleWebKit/537.36
+>>>>>>> 2ae51fd (Initial commit - ScrapingBee integration)
