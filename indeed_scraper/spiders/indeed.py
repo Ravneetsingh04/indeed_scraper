@@ -45,18 +45,33 @@ class IndeedSpider(scrapy.Spider):
             return
 
         self.api_calls += 1
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        proxy_url = get_proxy_url(url)
+
+        print("\n" + "="*80)
+        print(f"📡 API CALL #{self.api_calls} @ {timestamp}")
+        print(f"🌐 Target URL: {url}")
+        print(f"🔗 ScraperAPI Endpoint: {proxy_url}")
+        print("="*80 + "\n")
         self.log(f"📡 API Call #{self.api_calls}: {url}")
         yield scrapy.Request(
-            get_proxy_url(url),
+            proxy_url(url),
             callback=callback,
             errback=self.handle_error,
             dont_filter=True,                   # avoid duplicate filtering
-            meta={"dont_redirect": True},       # disable redirects (each costs credits)
+            meta={"dont_redirect": True, "source_url": url},       # disable redirects (each costs credits)
             **kwargs,
         )
 
     def parse(self, response):
         self.pageCount += 1
+        page_number = self.pageCount
+        source_url = response.meta.get("source_url", "Unknown")
+
+        print(f"\n🧭 PAGE {page_number} fetched from: {source_url}")
+        print(f"📅 Time: {datetime.now().strftime('%H:%M:%S')} | Status: {response.status}")
+
+        # Find all job cards
         self.log(f"--- Fetched page {self.pageCount}: {response.url} (status {response.status})")
 
         # Use both div.job_seen_beacon and attribute fallbacks for reliability
@@ -67,7 +82,7 @@ class IndeedSpider(scrapy.Spider):
         else:
             self.log(f"✅ Found {len(job_cards)} job cards.")
 
-        for card in job_cards[:3]:
+        for idx, card in enumerate(job_cards[:3], start=1):
             title = (
                 card.css("h2.jobTitle span::text").get()
                 or card.css("h2 span::text").get()
@@ -140,21 +155,16 @@ class IndeedSpider(scrapy.Spider):
             if not job_url:
                 continue
 
-            if job_url.startswith("/"):
-                job_url = f"https://www.indeed.com{job_url}"
-
-            if job_url in self.seen_urls:
-                continue
-            self.seen_urls.add(job_url)
-
-            yield {
-                "title": (title or "").strip(),
-                "company": (company or "").strip(),
-                "location": (location or "").strip(),
-                "salary": (salary or "").strip(),
-                "posted": posted,
-                "url": job_url,
-            }
+            if job_url not in self.seen_urls and job_url:
+                self.seen_urls.add(job_url)
+                yield {
+                    "title": (title or "").strip(),
+                    "company": (company or "").strip(),
+                    "location": (location or "").strip(),
+                    "salary": (salary or "").strip(),
+                    "posted": posted,
+                    "url": job_url,
+                }
 
         # Pagination
         if self.api_calls < MAX_API_CALLS:
@@ -168,11 +178,20 @@ class IndeedSpider(scrapy.Spider):
                     self.visited_pages.add(next_url)
                     yield from self.make_api_request(next_url, self.parse)
                 else:
-                    self.log(f"🔁 Skipping duplicate page: {next_url}")
+                    print(f"🔁 Skipping duplicate pagination: {next_url}")
+            else:
+                print("🚫 No next page found.")
+        else:
+            print(f"🧾 API limit reached after {self.api_calls} calls, stopping pagination.")
 
     def handle_error(self, failure):
         self.log(f"❌ Request failed: {failure.request.url}")
 
     def closed(self, reason):
-        self.log(f"🧾 Total ScraperAPI calls made: {self.api_calls}/{MAX_API_CALLS}")
-        self.log(f"📊 Total unique jobs scraped: {len(self.seen_urls)}")
+        print("\n" + "="*80)
+        print("📊 SCRAPING SUMMARY")
+        print(f"📈 Total ScraperAPI Calls: {self.api_calls}/{MAX_API_CALLS}")
+        print(f"📋 Total Unique Jobs: {len(self.seen_urls)}")
+        print(f"🧭 Total Pages Crawled: {self.pageCount}")
+        print(f"🛑 Reason for Stop: {reason}")
+        print("="*80 + "\n")
