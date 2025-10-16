@@ -87,20 +87,6 @@ class IndeedSpider(scrapy.Spider):
             location = " ".join(p.strip() for p in location_parts if p.strip())
             
 
-            # --- Salary Extraction ---
-            # salary_parts = card.css(
-            #     "div#salaryInfoAndJobType span::text, "
-            #     "div[data-testid='jobsearch-OtherJobDetailsContainer'] span::text, "
-            #     "div.salary-snippet-container *::text, "
-            #     "div.metadata.salary-snippet-container *::text, "
-            #     "span.estimated-salary::text, "
-            #     "div[data-testid='attribute_snippet_text']::text"
-            # ).getall()
-            
-            # salary = " ".join(p.strip() for p in salary_parts if p.strip())
-            
-            # if not salary:
-            #     salary = "Not disclosed"
 
             # --- Salary Extraction ---
             salary_parts = card.css(
