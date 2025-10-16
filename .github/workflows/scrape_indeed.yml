@@ -46,9 +46,12 @@ jobs:
           # Merge with existing CSV (if exists)
           cd $GITHUB_WORKSPACE
           if [ -f indeed_jobs.csv ]; then
-            echo "Merging old and new job listings..."
-            # Skip header from new_jobs.csv before appending
-            tail -n +2 output/new_jobs.csv >> indeed_jobs.csv
+            echo "Merging old and new job listings (new on top)..."
+            # Combine header + new data + old data
+            head -n 1 output/new_jobs.csv > merged.csv
+            tail -n +2 output/new_jobs.csv >> merged.csv
+            tail -n +2 indeed_jobs.csv >> merged.csv
+            mv merged.csv indeed_jobs.csv
           else
             echo "No existing file found, creating a new one..."
             cp output/new_jobs.csv indeed_jobs.csv
