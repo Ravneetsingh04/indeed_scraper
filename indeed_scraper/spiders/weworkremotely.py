@@ -5,8 +5,7 @@ from datetime import datetime
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
 MAX_API_CALLS = 5
-# When TEST_MODE is "true" the spider will fetch the WWR pages directly (no ScraperAPI)
-TEST_MODE = os.getenv("USE_PROXY", "true").lower() == "false"  # set USE_PROXY=false to TEST without credits
+
 
 
 def get_proxy_url(url):
@@ -42,10 +41,8 @@ class WeWorkRemotelySpider(scrapy.Spider):
         self.seen_urls = set()
 
     def start_requests(self):
-        # change the search term/location as needed
-        search_term = "React"
-        # WeWorkRemotely search URL pattern
-        start_url = f"https://weworkremotely.com/remote-jobs/search?term={search_term}"
+        query = "React Developer New York"
+        start_url = f"https://weworkremotely.com/remote-jobs/search?term={query.replace(' ', '+')}"
         yield from self.make_api_request(start_url, self.parse)
 
     def make_api_request(self, url, callback, **kwargs):
@@ -72,7 +69,7 @@ class WeWorkRemotelySpider(scrapy.Spider):
         self.log(f"--- Fetched page {self.page_count}: {response.url} (status {response.status})")
 
         # WWR common patterns: job listings are anchors under job lists; fallback selectors included
-        job_cards = response.css("section.jobs article, li.feature, li.job, a[href*='/remote-jobs/']")
+        job_cards = response.css("li.new-listing-container:not(.feature--ad)")
 
         if not job_cards:
             self.log("⚠ No job cards found — check HTML structure or blocking")
@@ -81,9 +78,9 @@ class WeWorkRemotelySpider(scrapy.Spider):
             self.log(f"✅ Found {len(job_cards)} job cards (raw).")
 
         items_scraped = 0
-        for card in job_cards:
+        for card in job_cards[:5]:
             # The `card` might be <article> or <li> or <a> — find the link first
-            href = card.css("a::attr(href)").get() or card.attrib.get("href")
+            href = card.css("a[href^='/remote-jobs/']::attr(href)").get()
             if not href:
                 continue
             # Build absolute URL
@@ -94,51 +91,38 @@ class WeWorkRemotelySpider(scrapy.Spider):
                 continue
             self.seen_urls.add(job_url)
 
-            # Title/Company/Location: try a few fallbacks (WWR uses h2/h3/span patterns)
-            title = (
-                card.css("span.title::text").get()
-                or card.css("h2::text").get()
-                or card.css("h3::text").get()
-                or card.css("a::text").get()
-            )
-            company = (
-                card.css("span.company::text").get()
-                or card.css("span.company::span::text").get()
-                or card.css("span::text").re_first(r"^[A-Za-z0-9\-\s\.]{2,}$")
-            )
-            # WWR often uses <span class="region"> or category labels
-            location = card.css("span.region::text").get() or card.css("span.location::text").get() or "Worldwide"
+            # Title, company, location, date
+            title = card.css("h3.new-listing__header__title::text").get()
+            company = card.css("p.new-listing__company-name::text").get()
+            location = card.css("p.new-listing__company-headquarters::text").get()
+            posted = card.css("p.new-listing__header__icons__date::text").get()
+            posted = posted.strip() if posted else datetime.now().strftime("%Y-%m-%d")
+            categories = card.css("div.new-listing__categories p::text").getall()
+            salary = next((c.strip() for c in categories if "$" in c), "Not disclosed")
 
-            # Posted date: WWR generally uses <time datetime="..."> or text
-            posted = card.css("time::attr(datetime)").get() or card.css("time::text").get()
-            if not posted:
-                posted = datetime.now().strftime("%Y-%m-%d")
+            
 
             yield {
                 "title": (title or "").strip(),
                 "company": (company or "").strip(),
                 "location": (location or "").strip(),
                 "posted": posted,
+                "salary": salary,
                 "url": job_url,
             }
             items_scraped += 1
 
         self.log(f"📌 Items yielded from page: {items_scraped}")
 
-        # Pagination: WWR typically uses "page" links — fallback generic selector:
-        if self.api_calls < MAX_API_CALLS:
-            next_page = (
-                response.css('a[rel="next"]::attr(href)').get()
-                or response.css('a.next::attr(href)').get()
-                or response.css('a[aria-label="next"]::attr(href)').get()
-            )
-            if next_page:
-                next_url = urljoin("https://weworkremotely.com", next_page)
-                if next_url not in self.visited_pages:
-                    self.visited_pages.add(next_url)
-                    yield from self.make_api_request(next_url, self.parse)
-                else:
-                    self.log(f"🔁 Skipping duplicate page: {next_url}")
+         # Pagination (if any)
+        next_page = response.css("a[rel='next']::attr(href)").get()
+        if next_page and self.api_calls < MAX_API_CALLS:
+            next_url = urljoin("https://weworkremotely.com", next_page)
+            if next_url not in self.visited_pages:
+                self.visited_pages.add(next_url)
+                yield from self.make_api_request(next_url, self.parse)
+
+        
 
     def handle_error(self, failure):
         req = getattr(failure, "request", None)
