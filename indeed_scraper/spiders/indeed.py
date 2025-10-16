@@ -42,7 +42,7 @@ class IndeedSpider(scrapy.Spider):
         self.visited_pages = set()  # Added to prevent duplicate pagination calls
 
     def start_requests(self):
-        search_query = "Salesforce Developer Deloitte"
+        search_query = "Salesforce Developer"
         search_location = "New York, NY"
         indeed_url = f"https://www.indeed.com/jobs?q={search_query}&l={search_location}"
         yield from self.make_api_request(indeed_url, self.parse)
@@ -75,7 +75,7 @@ class IndeedSpider(scrapy.Spider):
         else:
             self.log(f"✅ Found {len(job_cards)} job cards.")
 
-        for card in job_cards:
+        for card in job_cards[:2]:
             title = (
                 card.css("h2.jobTitle span::text").get()
                 or card.css("h2 span::text").get()
