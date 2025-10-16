@@ -41,7 +41,7 @@ class WeWorkRemotelySpider(scrapy.Spider):
         self.seen_urls = set()
 
     def start_requests(self):
-        query = "React"
+        query = "Developer"
         start_url = f"https://weworkremotely.com/remote-jobs/search?term={query.replace(' ', '+')}"
         yield from self.make_api_request(start_url, self.parse)
 
@@ -78,7 +78,7 @@ class WeWorkRemotelySpider(scrapy.Spider):
             self.log(f"✅ Found {len(job_cards)} job cards (raw).")
 
         items_scraped = 0
-        for card in job_cards[:5]:
+        for card in job_cards[:30]:
             # The `card` might be <article> or <li> or <a> — find the link first
             href = card.css("a[href^='/remote-jobs/']::attr(href)").get()
             if not href:
