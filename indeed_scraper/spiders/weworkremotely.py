@@ -53,7 +53,7 @@ class WeWorkRemotelySpider(scrapy.Spider):
         self.api_calls += 1
         self.log(f"📡 API Call #{self.api_calls}: {url}")
 
-        target = get_proxy_url(url) if not TEST_MODE else url
+        target = get_proxy_url(url)
 
         yield scrapy.Request(
             target,
