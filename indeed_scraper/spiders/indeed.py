@@ -9,7 +9,15 @@ MAX_API_CALLS = 5
 
 def get_proxy_url(url):
     # PROXY URL BUILDER (Removed render=true)
-    payload = {"api_key": API_KEY, "url": url}
+    payload = {
+                "api_key": API_KEY,
+                "url": url,
+                "country_code": "us", #Reduce proxy rotation 
+                "render": "false",    #Explicitly disable rendering
+                "premium": "false",   #Avoid expensive “premium” geo hops
+                "num_retries": 2,     #Limit backend retries
+                "cache": "true"       #Cache static pages
+              }
     return "https://api.scraperapi.com/?" + urlencode(payload)
 
 
