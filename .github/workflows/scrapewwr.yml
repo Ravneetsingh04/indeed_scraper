@@ -31,8 +31,6 @@ jobs:
       - name: Run Scrapy spider and merge results
         env:
           SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
-          # To run without using ScraperAPI (test mode) set USE_PROXY=false
-          USE_PROXY: ${{ secrets.USE_PROXY | default('true') }}
         working-directory: indeed_scraper
         run: |
           echo "Running WeWorkRemotely spider..."
