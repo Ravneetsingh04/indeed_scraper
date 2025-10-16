@@ -41,7 +41,7 @@ class WeWorkRemotelySpider(scrapy.Spider):
         self.seen_urls = set()
 
     def start_requests(self):
-        query = "React Developer New York"
+        query = "React"
         start_url = f"https://weworkremotely.com/remote-jobs/search?term={query.replace(' ', '+')}"
         yield from self.make_api_request(start_url, self.parse)
 
