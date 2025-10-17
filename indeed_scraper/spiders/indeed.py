@@ -66,7 +66,7 @@ class IndeedSpider(scrapy.Spider):
             callback=callback,
             errback=self.handle_error,
             dont_filter=True,                   # avoid duplicate filtering
-            meta={"dont_redirect": True
+            meta={"dont_redirect": True,
                   "handle_httpstatus_list": [301, 302, 303, 307, 308]
                  },       # disable redirects (each costs credits)
             **kwargs,
