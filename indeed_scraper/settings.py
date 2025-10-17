@@ -14,7 +14,7 @@ NEWSPIDER_MODULE = "indeed_scraper.spiders"
 
 ADDONS = {}
 
-FEED_URI = 'indeed_jobs.csv'
+FEED_URI = 'jobs.csv'
 FEED_FORMAT = 'csv'
 
 
