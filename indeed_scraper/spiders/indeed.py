@@ -16,8 +16,10 @@ def get_proxy_url(url):
                 "country_code": "us", #Reduce proxy rotation 
                 "render": "false",    #Explicitly disable rendering
                 "premium": "false",   #Avoid expensive “premium” geo hops
-                "num_retries": 1,     #Limit backend retries
-                "cache": "true"       #Cache static pages
+                "num_retries": 0,     #Limit backend retries
+                "cache": "true",       #Cache static pages
+                "follow_redirect": "false",   # 🚫 stop following redirects (saves credits)
+                "keep_headers": "true",       # ensure headers aren’t re-fetched
               }
     return "https://api.scraperapi.com/?" + urlencode(payload)
 
@@ -64,7 +66,9 @@ class IndeedSpider(scrapy.Spider):
             callback=callback,
             errback=self.handle_error,
             dont_filter=True,                   # avoid duplicate filtering
-            meta={"dont_redirect": True},       # disable redirects (each costs credits)
+            meta={"dont_redirect": True
+                  "handle_httpstatus_list": [301, 302, 303, 307, 308]
+                 },       # disable redirects (each costs credits)
             **kwargs,
         )
 
