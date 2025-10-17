@@ -42,7 +42,8 @@ class WeWorkRemotelySpider(scrapy.Spider):
 
     def start_requests(self):
         query = "rails developer"
-        start_url = f"https://weworkremotely.com/remote-jobs/search?term={query.replace(' ', '+')}"
+        # Add the 'Past 24 Hours' filter to the search URL
+        start_url = f"https://weworkremotely.com/remote-jobs/search?term={query.replace(' ', '+')}&sort=Past+24+Hours"
         yield from self.make_api_request(start_url, self.parse)
 
     def make_api_request(self, url, callback, **kwargs):
