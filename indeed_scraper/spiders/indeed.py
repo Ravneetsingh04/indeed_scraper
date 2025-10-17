@@ -1,5 +1,5 @@
 import scrapy
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 import os
 from datetime import datetime
 
@@ -15,7 +15,7 @@ def get_proxy_url(url):
                 "country_code": "us", #Reduce proxy rotation 
                 "render": "false",    #Explicitly disable rendering
                 "premium": "false",   #Avoid expensive “premium” geo hops
-                "num_retries": 2,     #Limit backend retries
+                "num_retries": 1,     #Limit backend retries
                 "cache": "true"       #Cache static pages
               }
     return "https://api.scraperapi.com/?" + urlencode(payload)
@@ -72,10 +72,11 @@ class IndeedSpider(scrapy.Spider):
 
         if not job_cards:
             self.log("⚠ No job cards found — check HTML structure.")
+            return
         else:
             self.log(f"✅ Found {len(job_cards)} job cards.")
 
-        for card in job_cards[:30]:
+        for card in job_cards[:5]:
             title = (
                 card.css("h2.jobTitle span::text").get()
                 or card.css("h2 span::text").get()
@@ -135,11 +136,12 @@ class IndeedSpider(scrapy.Spider):
                 continue
 
             if job_url.startswith("/"):
-                job_url = f"https://www.indeed.com{job_url}"
+                job_url = urljoin("https://www.indeed.com",job_url)
 
             if job_url in self.seen_urls:
                 continue
-            self.seen_urls.add(job_url)
+            if job_url not in self.seen_urls:
+                self.seen_urls.add(job_url)
 
             yield {
                 "title": (title or "").strip(),
@@ -151,18 +153,23 @@ class IndeedSpider(scrapy.Spider):
             }
 
         # Pagination
-        if self.api_calls < MAX_API_CALLS:
-            next_page = response.css('a[aria-label="Next Page"]::attr(href), a[data-testid="pagination-page-next"]::attr(href)').get()
-            if next_page:
-                # Always join against Indeed’s domain — not ScraperAPI’s
-                next_url = urljoin("https://www.indeed.com", next_page)
+        # if self.api_calls < MAX_API_CALLS:
+        #     next_page = response.css('a[aria-label="Next Page"]::attr(href), a[data-testid="pagination-page-next"]::attr(href)').get()
+        #     if next_page:
+        #         # Always join against Indeed’s domain — not ScraperAPI’s
+        #         next_url = urljoin("https://www.indeed.com", next_page)
 
-                # ✅ Prevent duplicate or recursive pagination
-                if next_url not in self.visited_pages:
-                    self.visited_pages.add(next_url)
-                    yield from self.make_api_request(next_url, self.parse)
-                else:
-                    self.log(f"🔁 Skipping duplicate page: {next_url}")
+        #         # ✅ Prevent duplicate or recursive pagination
+        #         if next_url not in self.visited_pages:
+        #             self.visited_pages.add(next_url)
+        #             yield from self.make_api_request(next_url, self.parse)
+        #         else:
+        #             self.log(f"🔁 Skipping duplicate page: {next_url}")
+    
+        self.log(f"📌 Items yielded from page: {len(self.seen_urls)}")
+
+        # ⚡ No pagination calls — single API hit behavior (like WWR)
+        self.log("✅ Completed single batch scrape (no further pagination).")
 
     def handle_error(self, failure):
         self.log(f"❌ Request failed: {failure.request.url}")
