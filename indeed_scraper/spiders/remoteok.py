@@ -12,7 +12,7 @@ def get_proxy_url(url):
         "api_key": API_KEY,
         "url": url,
         "country_code": "us",
-        "render": "false",  # ✅ RemoteOK is static HTML
+        "render": "true",  #Rednering true for now
         "premium": "false",
         "num_retries": 1,
         "cache": "true",
@@ -68,20 +68,18 @@ class RemoteOKSpider(scrapy.Spider):
         self.log(f"✅ Fetched page {self.page_count}: {response.url} (status {response.status})")
 
         # ✅ Only select real job rows (skip dividers, ads)
+        with open("remoteok_debug.html", "wb") as f:
+            f.write(response.body)
+
         job_rows = response.css("tr.job[data-id]")
-        if not job_rows:
-            self.log("⚠ No job rows found — possible structure change or block")
-            return
 
-        self.log(f"✅ Found {len(job_rows)} valid job rows.")
-
-        items_scraped = 0
-        for row in job_rows[:30]:
-            title = row.css("h2[itemprop='title']::text").get()
-            company = row.css("h3[itemprop='name']::text").get()
-            location = row.css("div.location::text").get()
-            posted = row.css("time::attr(datetime)").get()
+        for row in job_rows:
+            title = row.css("h2::text").get()
+            company = row.css("h3::text").get()
+            location = " ".join([t.strip() for t in row.css("div.location::text").getall() if t.strip()])
+            posted = row.css("time::attr(datetime), time::text").get()
             job_url = row.css("a.preventLink::attr(href)").get()
+
 
             if not job_url:
                 continue
@@ -98,17 +96,17 @@ class RemoteOKSpider(scrapy.Spider):
             salary = next((t for t in tags if "$" in t), "Not disclosed")
 
             # ✅ 24-hour filter
-            include_job = False
-            if posted:
-                try:
-                    posted_date = datetime.strptime(posted.split("T")[0], "%Y-%m-%d")
-                    include_job = posted_date >= self.cutoff_date
-                except Exception:
-                    # Fallback to keyword check
-                    if any(k in posted.lower() for k in ["hour", "today", "minute"]):
-                        include_job = True
-            if not include_job:
-                continue
+            include_job = True
+            # if posted:
+            #     try:
+            #         posted_date = datetime.strptime(posted.split("T")[0], "%Y-%m-%d")
+            #         include_job = posted_date >= self.cutoff_date
+            #     except Exception:
+            #         # Fallback to keyword check
+            #         if any(k in posted.lower() for k in ["hour", "today", "minute"]):
+            #             include_job = True
+            # if not include_job:
+            #     continue
 
             # Skip duplicates
             if job_url in self.seen_urls:
