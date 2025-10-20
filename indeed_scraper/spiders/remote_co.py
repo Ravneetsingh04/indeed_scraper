@@ -66,7 +66,7 @@ class RemoteCoSpider(scrapy.Spider):
         self.page_count += 1
         self.log(f"✅ Fetched page {self.page_count}: {response.url} (status {response.status})")
 
-        job_cards = response.css("div.card")  # Remote.co uses div.card for job entries
+        job_cards = response.css("div#job-table-wrapper div.sc-hxaYUE.knZTmB")  # Remote.co uses div.card for job entries
 
         if not job_cards:
             self.log("⚠ No job cards found — check HTML structure or blocking")
@@ -76,20 +76,21 @@ class RemoteCoSpider(scrapy.Spider):
 
         items_scraped = 0
         for card in job_cards[:30]:
-            href = card.css("a.card__job-link::attr(href)").get()
-            if not href:
-                continue
+            title = card.css("a.sc-lcUlUk span.sc-fLdTid.hxOunA::text").get()
+            posted = card.css("a.sc-lcUlUk span.sc-kQZgv.gVdgMf::text").get()
+            job_url = card.css("a.sc-lcUlUk::attr(href)").get()
+            job_url = response.urljoin(job_url) if job_url else None
 
-            job_url = urljoin("https://remote.co", href)
-            if job_url in self.seen_urls:
+            tags = card.css("ul.sc-bBUFSZ.kSPuZK li::text").getall()
+            location = card.css("div.sc-fPcgZv.fSjLPq span.sc-kXbFWK.jgBZbs::text").get()
+
+            # Basic tag filtering
+            job_type = next((t for t in tags if "Full-Time" in t or "Part-Time" in t or "Freelance" in t or "Contract" in t), "Not specified")
+            salary = next((t for t in tags if "$" in t or "Annually" in t or "Hourly" in t), "Not disclosed")
+
+            if not job_url or job_url in self.seen_urls:
                 continue
             self.seen_urls.add(job_url)
-
-            title = card.css("span.card__job-title::text").get()
-            company = card.css("span.card__company::text").get()
-            location = card.css("span.card__location::text").get()
-            posted = card.css("time::attr(datetime)").get() or datetime.now().strftime("%Y-%m-%d")
-            job_type = card.css("span.card__job-type::text").get() or "Not specified"
 
             yield {
                 "title": (title or "").strip(),
