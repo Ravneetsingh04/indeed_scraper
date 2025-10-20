@@ -67,64 +67,50 @@ class RemoteOKSpider(scrapy.Spider):
         self.page_count += 1
         self.log(f"✅ Fetched page {self.page_count}: {response.url} (status {response.status})")
 
-        # ✅ Debug dump (helpful if 0 jobs found)
+        # ✅ Debug HTML (helpful if 0 jobs found)
         with open("remoteok_debug.html", "wb") as f:
             f.write(response.body)
 
-        # ✅ Extract embedded job data JSON blocks
-        json_blocks = re.findall(
-            r'<script type="application/ld\+json">\s*(\{.*?\})\s*</script>',
-            response.text,
-            re.DOTALL,
-        )
-
-        if not json_blocks:
-            self.log("⚠ No JSON job blocks found — check remoteok_debug.html for actual HTML.")
+        # Select only real job rows
+        job_rows = response.css("table#jobboard tr.job[data-id]")
+        if not job_rows:
+            self.log("⚠ No job rows found. Check remoteok_debug.html to inspect structure.")
             return
 
-        self.log(f"✅ Found {len(json_blocks)} JSON job entries")
+        self.log(f"✅ Found {len(job_rows)} job rows.")
         items_scraped = 0
 
-        for block in json_blocks:
-            try:
-                data = json.loads(block)
+        for row in job_rows[:30]:
+            title = row.css("h2[itemprop='title']::text").get(default="").strip()
+            company = row.css("h3[itemprop='name']::text").get(default="").strip()
+            location = " ".join(row.css("div.location::text").getall()).strip() or "Remote"
+            job_url = row.css("a.preventLink::attr(href)").get()
+            if job_url and job_url.startswith("/"):
+                job_url = f"https://remoteok.com{job_url}"
 
-                title = (data.get("title") or "").strip()
-                company = (data.get("hiringOrganization", {}).get("name") or "").strip()
-                location = (
-                    data.get("jobLocation", [{}])[0]
-                    .get("address", {})
-                    .get("addressCountry", "Remote")
-                )
-                job_url = data.get("hiringOrganization", {}).get("url") or ""
-                salary_info = data.get("baseSalary", {}).get("value", {})
-                min_salary = salary_info.get("minValue")
-                max_salary = salary_info.get("maxValue")
-                currency = data.get("baseSalary", {}).get("currency", "")
-                desc = (data.get("description") or "").replace("\n", " ").strip()[:300]
+            # Tags & type
+            tags = row.css("td.tags h3::text").getall()
+            job_type = next((t for t in tags if any(k in t for k in ["Full-Time", "Part-Time", "Contract", "Freelance"])), "Not specified")
+            salary = row.css("div.salary::text").get(default="Not disclosed").strip()
 
-                if not title or not company:
-                    continue
-                if job_url in self.seen_urls:
-                    continue
-                self.seen_urls.add(job_url)
+            # Date
+            posted_text = row.css("time::text").get(default="").strip() or "N/A"
 
-                yield {
-                    "title": title,
-                    "company": company,
-                    "location": location,
-                    "salary_range": (
-                        f"{min_salary}-{max_salary} {currency}"
-                        if min_salary
-                        else "Not specified"
-                    ),
-                    "url": job_url or response.url,
-                    "description": desc,
-                }
-                items_scraped += 1
-
-            except json.JSONDecodeError:
+            # Skip duplicates
+            if job_url in self.seen_urls:
                 continue
+            self.seen_urls.add(job_url)
+
+            yield {
+                "title": title,
+                "company": company,
+                "location": location,
+                "salary": salary,
+                "type": job_type,
+                "posted": posted_text,
+                "url": job_url,
+            }
+            items_scraped += 1
 
         self.log(f"📌 Jobs yielded from page: {items_scraped}")
 
