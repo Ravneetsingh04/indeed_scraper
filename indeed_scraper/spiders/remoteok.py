@@ -1,7 +1,8 @@
 import scrapy
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode
 import os
-import re
+import json
+import re  # ✅ FIX: Added missing import for regex
 from datetime import datetime, timedelta
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
@@ -13,7 +14,7 @@ def get_proxy_url(url):
         "api_key": API_KEY,
         "url": url,
         "country_code": "us",
-        "render": "true",  #Rednering true for now
+        "render": "true",  # ✅ Rendering required for RemoteOK
         "premium": "false",
         "num_retries": 1,
         "cache": "true",
@@ -38,11 +39,9 @@ class RemoteOKSpider(scrapy.Spider):
         self.page_count = 0
         self.visited_pages = set()
         self.seen_urls = set()
-        self.cutoff_date = datetime.utcnow() - timedelta(days=1)  # ✅ 24-hour filter window
 
     def start_requests(self):
         query = "React"
-        # RemoteOK search URL pattern
         start_url = f"https://remoteok.com/remote-{query.replace(' ', '-')}-jobs"
         yield from self.make_api_request(start_url, self.parse)
 
@@ -68,11 +67,11 @@ class RemoteOKSpider(scrapy.Spider):
         self.page_count += 1
         self.log(f"✅ Fetched page {self.page_count}: {response.url} (status {response.status})")
 
-        # Save a debug copy
+        # ✅ Debug dump (helpful if 0 jobs found)
         with open("remoteok_debug.html", "wb") as f:
             f.write(response.body)
 
-        # ✅ Use JSON blocks instead of visible HTML rows
+        # ✅ Extract embedded job data JSON blocks
         json_blocks = re.findall(
             r'<script type="application/ld\+json">\s*(\{.*?\})\s*</script>',
             response.text,
@@ -80,17 +79,16 @@ class RemoteOKSpider(scrapy.Spider):
         )
 
         if not json_blocks:
-            self.log("⚠ No JSON job blocks found. Dumping HTML for inspection.")
-            with open("remoteok_debug.html", "wb") as f:
-                f.write(response.body)
+            self.log("⚠ No JSON job blocks found — check remoteok_debug.html for actual HTML.")
             return
 
-        self.log(f"✅ Found {len(json_blocks)} job JSON blocks.")
+        self.log(f"✅ Found {len(json_blocks)} JSON job entries")
         items_scraped = 0
 
         for block in json_blocks:
             try:
                 data = json.loads(block)
+
                 title = (data.get("title") or "").strip()
                 company = (data.get("hiringOrganization", {}).get("name") or "").strip()
                 location = (
@@ -105,7 +103,6 @@ class RemoteOKSpider(scrapy.Spider):
                 currency = data.get("baseSalary", {}).get("currency", "")
                 desc = (data.get("description") or "").replace("\n", " ").strip()[:300]
 
-                # Skip invalid or duplicate jobs
                 if not title or not company:
                     continue
                 if job_url in self.seen_urls:
@@ -130,9 +127,10 @@ class RemoteOKSpider(scrapy.Spider):
                 continue
 
         self.log(f"📌 Jobs yielded from page: {items_scraped}")
+
     def handle_error(self, failure):
         req = getattr(failure, "request", None)
-        url = req.url if req is not None else "unknown"
+        url = req.url if req else "unknown"
         self.log(f"❌ Request failed: {url}")
 
     def closed(self, reason):
