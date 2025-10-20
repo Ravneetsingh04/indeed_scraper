@@ -5,6 +5,7 @@ from datetime import datetime
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
 MAX_API_CALLS = 5
+MAX_JOBS=5
 
 
 def get_proxy_url(url):
