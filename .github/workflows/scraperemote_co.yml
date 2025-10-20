@@ -1,0 +1,63 @@
+name: Scrape Remote.co Jobs Daily
+
+on:
+  schedule:
+    - cron: '30 10 * * *'  # Runs every day at 10:30 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scrape_remote_co:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install scrapy requests pandas
+
+      - name: Run Scrapy spider and merge results
+        env:
+          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
+        working-directory: indeed_scraper
+        run: |
+          echo "Running Remote.co spider..."
+          mkdir -p $GITHUB_WORKSPACE/output
+          
+          scrapy crawl remote_co -o $GITHUB_WORKSPACE/output/new_remote_co.csv
+
+          echo "Scrapy completed. Checking output:"
+          ls -lh $GITHUB_WORKSPACE/output/
+          head -n 10 $GITHUB_WORKSPACE/output/new_remote_co.csv || echo "File empty!"
+
+          cd $GITHUB_WORKSPACE
+          if [ -f remote_co_jobs.csv ]; then
+            echo "Merging old and new Remote.co job listings (new on top)..."
+            head -n 1 output/new_remote_co.csv > merged_remote_co.csv
+            tail -n +2 output/new_remote_co.csv >> merged_remote_co.csv
+            tail -n +2 remote_co_jobs.csv >> merged_remote_co.csv
+            mv merged_remote_co.csv remote_co_jobs.csv
+          else
+            echo "No existing file found, creating a new one..."
+            cp output/new_remote_co.csv remote_co_jobs.csv
+          fi
+
+      - name: Commit and push results
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add remote_co_jobs.csv || echo "No file to add"
+          git commit -m "Append new Remote.co jobs" || echo "No changes to commit"
+          git push
