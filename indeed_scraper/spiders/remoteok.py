@@ -3,7 +3,7 @@ from urllib.parse import urlencode
 import os
 import json
 import re  # ✅ FIX: Added missing import for regex
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
 MAX_API_CALLS = 3  # Keep calls low, similar to Remote.co
@@ -39,6 +39,8 @@ class RemoteOKSpider(scrapy.Spider):
         self.page_count = 0
         self.visited_pages = set()
         self.seen_urls = set()
+        # ✅ Define 24-hour cutoff timestamp
+        self.cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
 
     def start_requests(self):
         query = "React"
@@ -88,7 +90,20 @@ class RemoteOKSpider(scrapy.Spider):
         for block in json_blocks:
             try:
                 data = json.loads(block)
+                date_posted = data.get("datePosted")
 
+                # ✅ Skip if no date
+                if not date_posted:
+                    continue
+
+                try:
+                    posted_time = datetime.fromisoformat(date_posted.replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+
+                # ✅ Apply 24-hour filter
+                if posted_time < self.cutoff_time:
+                    continue
                 title = (data.get("title") or "").strip()
                 company = (data.get("hiringOrganization", {}).get("name") or "").strip()
                 location = (
@@ -117,6 +132,7 @@ class RemoteOKSpider(scrapy.Spider):
                         if min_salary
                         else "Not specified"
                     ),
+                    "posted": posted_time.strftime("%Y-%m-%d %H:%M:%S UTC"),
                     "url": job_url or response.url,
                 }
                 items_scraped += 1
