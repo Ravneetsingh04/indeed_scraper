@@ -45,9 +45,10 @@ class IndeedSpider(scrapy.Spider):
         self.visited_pages = set()  # Added to prevent duplicate pagination calls
 
     def start_requests(self):
-        search_query = "React Developer"
+        search_query = "Python Developer"
         search_location = "New York, NY"
-        indeed_url = f"https://www.indeed.com/jobs?q={search_query}&l={search_location}"
+        #Added 24 hrs filter
+        indeed_url = f"https://www.indeed.com/jobs?q={search_query}&l={search_location}&fromage=1"
         yield from self.make_api_request(indeed_url, self.parse)
 
     def make_api_request(self, url, callback, **kwargs):
