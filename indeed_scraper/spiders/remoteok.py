@@ -43,7 +43,7 @@ class RemoteOKSpider(scrapy.Spider):
         self.cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
 
     def start_requests(self):
-        query = "React"
+        query = "Java"
         start_url = f"https://remoteok.com/remote-{query.replace(' ', '-')}-jobs"
         yield from self.make_api_request(start_url, self.parse)
 
