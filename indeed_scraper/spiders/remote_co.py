@@ -79,7 +79,14 @@ class RemoteCoSpider(scrapy.Spider):
             title = card.css("a.sc-lcUlUk span.sc-fLdTid.hxOunA::text").get()
             posted = card.css("a.sc-lcUlUk span.sc-kQZgv.gVdgMf::text").get()
             job_url = card.css("a.sc-lcUlUk::attr(href)").get()
-            job_url = response.urljoin(job_url) if job_url else None
+            if not job_url:
+                continue
+            
+            # ✅ Fix: Always build full URL using remote.co, not response.urljoin()
+            if job_url.startswith("/"):
+                job_url = f"https://remote.co{job_url}"
+            elif not job_url.startswith("http"):
+                job_url = f"https://remote.co/{job_url}"
 
             tags = card.css("ul.sc-bBUFSZ.kSPuZK li::text").getall()
             location = card.css("div.sc-fPcgZv.fSjLPq span.sc-kXbFWK.jgBZbs::text").get()
