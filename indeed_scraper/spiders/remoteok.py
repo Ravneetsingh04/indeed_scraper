@@ -71,24 +71,27 @@ class RemoteOKSpider(scrapy.Spider):
         with open("remoteok_debug.html", "wb") as f:
             f.write(response.body)
 
-        job_rows = response.css("tr.job[data-id]")
+        job_rows = response.css("table#jobboard tr.job[data-id]")
+        if not job_rows:
+            self.log("⚠ No job rows found. Dumping HTML for inspection.")
+            with open("remoteok_debug.html", "wb") as f:
+                f.write(response.body)
+            return
+        
+        self.log(f"✅ Found {len(job_rows)} job rows.")
 
-        for row in job_rows:
-            title = row.css("h2::text").get()
-            company = row.css("h3::text").get()
-            location = " ".join([t.strip() for t in row.css("div.location::text").getall() if t.strip()])
-            posted = row.css("time::attr(datetime), time::text").get()
+
+        for row in job_rows[:5]:
+            title = row.css("h2::text").get(default="").strip()
+            company = row.css("h3::text").get(default="").strip()
+            location = " ".join(row.css("div.location::text").getall()).strip() or "Remote"
             job_url = row.css("a.preventLink::attr(href)").get()
+            if job_url and job_url.startswith("/"):
+                job_url = "https://remoteok.com" + job_url
+        
+            # Get relative date (e.g., "3d", "9d")
+            posted_text = row.css("time::text").get(default="").strip()
 
-
-            if not job_url:
-                continue
-
-            # ✅ Fix relative URLs
-            if job_url.startswith("/"):
-                job_url = f"https://remoteok.com{job_url}"
-            elif not job_url.startswith("http"):
-                job_url = f"https://remoteok.com/{job_url}"
 
             # Collect tags
             tags = row.css("td.tags h3::text").getall()
