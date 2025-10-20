@@ -13,7 +13,7 @@ def get_proxy_url(url):
         "api_key": API_KEY,
         "url": url,
         "country_code": "us",
-        "render": "false",
+        "render": "true",
         "premium": "false",
         "num_retries": 1,
         "cache": "true",
@@ -87,6 +87,7 @@ class RemoteCoSpider(scrapy.Spider):
             # Basic tag filtering
             job_type = next((t for t in tags if "Full-Time" in t or "Part-Time" in t or "Freelance" in t or "Contract" in t), "Not specified")
             salary = next((t for t in tags if "$" in t or "Annually" in t or "Hourly" in t), "Not disclosed")
+            company = "Remote.co Listing"  # or set to "Not specified"
 
             if not job_url or job_url in self.seen_urls:
                 continue
