@@ -42,7 +42,7 @@ class ZipRecruiterSpider(scrapy.Spider):
         self.jobs_scraped = 0
 
     def start_requests(self):
-        search_query = "Salesforce Developer"
+        search_query = "Python Developer"
         search_location = "New York, NY"
 
         # ZipRecruiter Search URL
