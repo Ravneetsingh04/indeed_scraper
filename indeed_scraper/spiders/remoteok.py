@@ -1,6 +1,7 @@
 import scrapy
 from urllib.parse import urlencode, urljoin
 import os
+import re
 from datetime import datetime, timedelta
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
