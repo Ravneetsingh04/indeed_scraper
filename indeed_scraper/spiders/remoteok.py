@@ -67,67 +67,68 @@ class RemoteOKSpider(scrapy.Spider):
         self.page_count += 1
         self.log(f"✅ Fetched page {self.page_count}: {response.url} (status {response.status})")
 
-        # ✅ Only select real job rows (skip dividers, ads)
+        # Save a debug copy
         with open("remoteok_debug.html", "wb") as f:
             f.write(response.body)
 
-        job_rows = response.css("table#jobboard tr.job[data-id]")
-        if not job_rows:
-            self.log("⚠ No job rows found. Dumping HTML for inspection.")
+        # ✅ Use JSON blocks instead of visible HTML rows
+        json_blocks = re.findall(
+            r'<script type="application/ld\+json">\s*(\{.*?\})\s*</script>',
+            response.text,
+            re.DOTALL,
+        )
+
+        if not json_blocks:
+            self.log("⚠ No JSON job blocks found. Dumping HTML for inspection.")
             with open("remoteok_debug.html", "wb") as f:
                 f.write(response.body)
             return
-        
-        self.log(f"✅ Found {len(job_rows)} job rows.")
 
+        self.log(f"✅ Found {len(json_blocks)} job JSON blocks.")
+        items_scraped = 0
 
-        for row in job_rows[:5]:
-            title = row.css("h2::text").get(default="").strip()
-            company = row.css("h3::text").get(default="").strip()
-            location = " ".join(row.css("div.location::text").getall()).strip() or "Remote"
-            job_url = row.css("a.preventLink::attr(href)").get()
-            if job_url and job_url.startswith("/"):
-                job_url = "https://remoteok.com" + job_url
-        
-            # Get relative date (e.g., "3d", "9d")
-            posted_text = row.css("time::text").get(default="").strip()
+        for block in json_blocks:
+            try:
+                data = json.loads(block)
+                title = (data.get("title") or "").strip()
+                company = (data.get("hiringOrganization", {}).get("name") or "").strip()
+                location = (
+                    data.get("jobLocation", [{}])[0]
+                    .get("address", {})
+                    .get("addressCountry", "Remote")
+                )
+                job_url = data.get("hiringOrganization", {}).get("url") or ""
+                salary_info = data.get("baseSalary", {}).get("value", {})
+                min_salary = salary_info.get("minValue")
+                max_salary = salary_info.get("maxValue")
+                currency = data.get("baseSalary", {}).get("currency", "")
+                desc = (data.get("description") or "").replace("\n", " ").strip()[:300]
 
+                # Skip invalid or duplicate jobs
+                if not title or not company:
+                    continue
+                if job_url in self.seen_urls:
+                    continue
+                self.seen_urls.add(job_url)
 
-            # Collect tags
-            tags = row.css("td.tags h3::text").getall()
-            job_type = next((t for t in tags if any(k in t for k in ["Full-Time", "Part-Time", "Contract", "Freelance"])), "Not specified")
-            salary = next((t for t in tags if "$" in t), "Not disclosed")
+                yield {
+                    "title": title,
+                    "company": company,
+                    "location": location,
+                    "salary_range": (
+                        f"{min_salary}-{max_salary} {currency}"
+                        if min_salary
+                        else "Not specified"
+                    ),
+                    "url": job_url or response.url,
+                    "description": desc,
+                }
+                items_scraped += 1
 
-            # ✅ 24-hour filter
-            include_job = True
-            # if posted:
-            #     try:
-            #         posted_date = datetime.strptime(posted.split("T")[0], "%Y-%m-%d")
-            #         include_job = posted_date >= self.cutoff_date
-            #     except Exception:
-            #         # Fallback to keyword check
-            #         if any(k in posted.lower() for k in ["hour", "today", "minute"]):
-            #             include_job = True
-            # if not include_job:
-            #     continue
-
-            # Skip duplicates
-            if job_url in self.seen_urls:
+            except json.JSONDecodeError:
                 continue
-            self.seen_urls.add(job_url)
 
-            yield {
-                "title": (title or "").strip(),
-                "company": (company or "").strip(),
-                "location": (location or "Remote").strip(),
-                "posted": posted or datetime.utcnow().strftime("%Y-%m-%d"),
-                "type": job_type.strip(),
-                "url": job_url,
-            }
-            items_scraped += 1
-
-        self.log(f"📌 Items yielded from page: {items_scraped}")
-
+        self.log(f"📌 Jobs yielded from page: {items_scraped}")
     def handle_error(self, failure):
         req = getattr(failure, "request", None)
         url = req.url if req is not None else "unknown"
