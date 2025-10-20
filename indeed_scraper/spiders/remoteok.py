@@ -40,7 +40,7 @@ class RemoteOKSpider(scrapy.Spider):
         self.visited_pages = set()
         self.seen_urls = set()
         # ✅ Define 24-hour cutoff timestamp
-        self.cutoff_time = datetime.now(timezone.utc) - timedelta(hours=24)
+        self.cutoff_time = datetime.now(timezone.utc) - timedelta(days=30)
 
     def start_requests(self):
         query = "Java"
