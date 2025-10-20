@@ -39,7 +39,7 @@ class RemoteOKSpider(scrapy.Spider):
         self.seen_urls = set()
 
     def start_requests(self):
-        query = "React"
+        query = "Python"
         start_url = f"https://remoteok.com/remote-{query.replace(' ', '-')}-jobs"
         yield from self.make_api_request(start_url, self.parse)
 
