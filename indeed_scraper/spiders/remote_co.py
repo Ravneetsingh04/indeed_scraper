@@ -1,14 +1,13 @@
 import scrapy
 from urllib.parse import urlencode, urljoin
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
 MAX_API_CALLS = 3  # Remote.co is light, so a few API calls max
 
 
 def get_proxy_url(url):
-    """Use ScraperAPI efficiently — no render required since Remote.co is mostly static."""
     payload = {
         "api_key": API_KEY,
         "url": url,
@@ -38,6 +37,7 @@ class RemoteCoSpider(scrapy.Spider):
         self.page_count = 0
         self.visited_pages = set()
         self.seen_urls = set()
+        self.cutoff_date = datetime.utcnow() - timedelta(days=1)  # ✅ Only jobs <= 24h old
 
     def start_requests(self):
         query = "salesforce developer"
@@ -88,6 +88,29 @@ class RemoteCoSpider(scrapy.Spider):
             job_type = next((t for t in tags if "Full-Time" in t or "Part-Time" in t or "Freelance" in t or "Contract" in t), "Not specified")
             salary = next((t for t in tags if "$" in t or "Annually" in t or "Hourly" in t), "Not disclosed")
             company = "Remote.co Listing"  # or set to "Not specified"
+            # ✅ 24-hour filter logic
+            posted_text = (posted or "").strip().lower()
+            include_job = False
+
+            if any(k in posted_text for k in ["hour", "today", "just posted", "minutes ago"]):
+                include_job = True
+            elif "day" in posted_text:
+                try:
+                    days_ago = int([s for s in posted_text.split() if s.isdigit()][0])
+                    if days_ago <= 1:
+                        include_job = True
+                except Exception:
+                    pass
+            else:
+                # fallback: if it's a date, check if within 24 hours
+                try:
+                    posted_date = datetime.strptime(posted_text, "%Y-%m-%d")
+                    include_job = posted_date >= self.cutoff_date
+                except Exception:
+                    include_job = False
+
+            if not include_job:
+                continue  # Skip anything older than 24 hours
 
             if not job_url or job_url in self.seen_urls:
                 continue
