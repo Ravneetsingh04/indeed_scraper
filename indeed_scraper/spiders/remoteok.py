@@ -67,72 +67,65 @@ class RemoteOKSpider(scrapy.Spider):
         self.page_count += 1
         self.log(f"✅ Fetched page {self.page_count}: {response.url} (status {response.status})")
 
-        # ✅ RemoteOK job cards live inside a table with class="jobsboard"
-        job_cards = response.css("tr.job")  # each job listing is in a <tr class='job'>
-
-        if not job_cards:
-            self.log("⚠ No job cards found — check structure or blocking")
+        # ✅ Only select real job rows (skip dividers, ads)
+        job_rows = response.css("tr.job[data-id]")
+        if not job_rows:
+            self.log("⚠ No job rows found — possible structure change or block")
             return
-        else:
-            self.log(f"✅ Found {len(job_cards)} job cards.")
+
+        self.log(f"✅ Found {len(job_rows)} valid job rows.")
 
         items_scraped = 0
-        for card in job_cards[:30]:
-            title = card.css("td.position h2::text").get()
-            company = card.css("td.company h3::text").get()
-            location = card.css("div.location::text").get()
-            posted = card.css("time::attr(datetime)").get()
-            job_url = card.css("a.preventLink::attr(href)").get()
+        for row in job_rows[:30]:
+            title = row.css("h2[itemprop='title']::text").get()
+            company = row.css("h3[itemprop='name']::text").get()
+            location = row.css("div.location::text").get()
+            posted = row.css("time::attr(datetime)").get()
+            job_url = row.css("a.preventLink::attr(href)").get()
 
             if not job_url:
                 continue
 
-            # ✅ Ensure full accessible RemoteOK URL
+            # ✅ Fix relative URLs
             if job_url.startswith("/"):
                 job_url = f"https://remoteok.com{job_url}"
             elif not job_url.startswith("http"):
                 job_url = f"https://remoteok.com/{job_url}"
 
-            # Job type and salary (optional)
-            tags = card.css("div.tags a::text").getall()
+            # Collect tags
+            tags = row.css("td.tags h3::text").getall()
             job_type = next((t for t in tags if any(k in t for k in ["Full-Time", "Part-Time", "Contract", "Freelance"])), "Not specified")
             salary = next((t for t in tags if "$" in t), "Not disclosed")
 
-            # ✅ Filter by last 24 hours
+            # ✅ 24-hour filter
             include_job = False
-            posted_text = (posted or "").strip().lower()
-
-            if any(k in posted_text for k in ["hour", "today", "just posted", "minutes ago"]):
-                include_job = True
-            else:
+            if posted:
                 try:
-                    posted_date = datetime.strptime(posted_text.split("T")[0], "%Y-%m-%d")
-                    if posted_date >= self.cutoff_date:
-                        include_job = True
+                    posted_date = datetime.strptime(posted.split("T")[0], "%Y-%m-%d")
+                    include_job = posted_date >= self.cutoff_date
                 except Exception:
-                    include_job = False
-
+                    # Fallback to keyword check
+                    if any(k in posted.lower() for k in ["hour", "today", "minute"]):
+                        include_job = True
             if not include_job:
-                continue  # Skip older listings
+                continue
 
+            # Skip duplicates
             if job_url in self.seen_urls:
                 continue
             self.seen_urls.add(job_url)
 
             yield {
                 "title": (title or "").strip(),
-                "company": (company or "RemoteOK Listing").strip(),
-                "location": (location or "Not specified").strip(),
-                "posted": posted or datetime.now().strftime("%Y-%m-%d"),
+                "company": (company or "").strip(),
+                "location": (location or "Remote").strip(),
+                "posted": posted or datetime.utcnow().strftime("%Y-%m-%d"),
                 "type": job_type.strip(),
                 "url": job_url,
             }
             items_scraped += 1
 
         self.log(f"📌 Items yielded from page: {items_scraped}")
-
-        # ✅ RemoteOK doesn't have traditional pagination — stop after first page
-        self.log("ℹ️ RemoteOK listings fetched (no pagination).")
 
     def handle_error(self, failure):
         req = getattr(failure, "request", None)
