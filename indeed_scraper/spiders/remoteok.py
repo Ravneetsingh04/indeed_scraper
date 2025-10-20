@@ -2,10 +2,11 @@ import scrapy
 from urllib.parse import urlencode
 import os
 import json
+import re  # ✅ FIX: Added missing import for regex
 from datetime import datetime, timedelta
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
-MAX_API_CALLS = 3
+MAX_API_CALLS = 3  # Keep calls low, similar to Remote.co
 
 
 def get_proxy_url(url):
@@ -13,7 +14,7 @@ def get_proxy_url(url):
         "api_key": API_KEY,
         "url": url,
         "country_code": "us",
-        "render": "true",  # ✅ Rendering is needed once for initial page
+        "render": "true",  # ✅ Rendering required for RemoteOK
         "premium": "false",
         "num_retries": 1,
         "cache": "true",
@@ -36,10 +37,11 @@ class RemoteOKSpider(scrapy.Spider):
         super().__init__(*args, **kwargs)
         self.api_calls = 0
         self.page_count = 0
+        self.visited_pages = set()
         self.seen_urls = set()
 
     def start_requests(self):
-        query = "Python"
+        query = "React"
         start_url = f"https://remoteok.com/remote-{query.replace(' ', '-')}-jobs"
         yield from self.make_api_request(start_url, self.parse)
 
@@ -47,6 +49,7 @@ class RemoteOKSpider(scrapy.Spider):
         if self.api_calls >= MAX_API_CALLS:
             self.log(f"⛔ API limit reached ({self.api_calls}/{MAX_API_CALLS}). Stopping crawl.")
             return
+
         self.api_calls += 1
         self.log(f"📡 API Call #{self.api_calls}: {url}")
 
@@ -62,58 +65,66 @@ class RemoteOKSpider(scrapy.Spider):
 
     def parse(self, response):
         self.page_count += 1
-        self.log(f"✅ Page {self.page_count} fetched successfully")
+        self.log(f"✅ Fetched page {self.page_count}: {response.url} (status {response.status})")
 
-        # Save for debugging if empty
+        # ✅ Debug dump (helpful if 0 jobs found)
         with open("remoteok_debug.html", "wb") as f:
             f.write(response.body)
 
-        # Extract the embedded JSON data (Next.js payload)
-        json_data = response.css("script#__NEXT_DATA__::text").get()
-        if not json_data:
-            self.log("⚠ No __NEXT_DATA__ JSON found in HTML.")
+        # ✅ Extract embedded job data JSON blocks
+        json_blocks = re.findall(
+            r'<script type="application/ld\+json">\s*(\{.*?\})\s*</script>',
+            response.text,
+            re.DOTALL,
+        )
+
+        if not json_blocks:
+            self.log("⚠ No JSON job blocks found — check remoteok_debug.html for actual HTML.")
             return
 
-        try:
-            data = json.loads(json_data)
-            jobs = data.get("props", {}).get("pageProps", {}).get("jobs", [])
-        except Exception as e:
-            self.log(f"❌ Failed to parse JSON: {e}")
-            return
-
-        if not jobs:
-            self.log("⚠ No jobs found inside Next.js data.")
-            return
-
-        self.log(f"✅ Found {len(jobs)} jobs in JSON payload.")
+        self.log(f"✅ Found {len(json_blocks)} JSON job entries")
         items_scraped = 0
 
-        for job in jobs:
-            job_url = f"https://remoteok.com{job.get('url', '')}"
-            if job_url in self.seen_urls:
+        for block in json_blocks:
+            try:
+                data = json.loads(block)
+
+                title = (data.get("title") or "").strip()
+                company = (data.get("hiringOrganization", {}).get("name") or "").strip()
+                location = (
+                    data.get("jobLocation", [{}])[0]
+                    .get("address", {})
+                    .get("addressCountry", "Remote")
+                )
+                job_url = data.get("hiringOrganization", {}).get("url") or ""
+                salary_info = data.get("baseSalary", {}).get("value", {})
+                min_salary = salary_info.get("minValue")
+                max_salary = salary_info.get("maxValue")
+                currency = data.get("baseSalary", {}).get("currency", "")
+
+                if not title or not company:
+                    continue
+                if job_url in self.seen_urls:
+                    continue
+                self.seen_urls.add(job_url)
+
+                yield {
+                    "title": title,
+                    "company": company,
+                    "location": location,
+                    "salary_range": (
+                        f"{min_salary}-{max_salary} {currency}"
+                        if min_salary
+                        else "Not specified"
+                    ),
+                    "url": job_url or response.url,
+                }
+                items_scraped += 1
+
+            except json.JSONDecodeError:
                 continue
-            self.seen_urls.add(job_url)
 
-            title = job.get("position", "").strip()
-            company = job.get("company", "").strip()
-            location = job.get("location", "Remote").strip()
-            salary = job.get("salary", "Not disclosed")
-            job_type = job.get("tags", [])
-            job_type = next((t for t in job_type if t in ["Full-Time", "Part-Time", "Contract", "Freelance"]), "Not specified")
-            posted = job.get("date", "") or job.get("epoch", "")
-
-            yield {
-                "title": title,
-                "company": company,
-                "location": location,
-                "salary": salary,
-                "type": job_type,
-                "posted": posted,
-                "url": job_url,
-            }
-            items_scraped += 1
-
-        self.log(f"📌 Jobs yielded: {items_scraped}")
+        self.log(f"📌 Jobs yielded from page: {items_scraped}")
 
     def handle_error(self, failure):
         req = getattr(failure, "request", None)
