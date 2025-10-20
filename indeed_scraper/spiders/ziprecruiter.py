@@ -2,6 +2,7 @@ import scrapy
 from urllib.parse import urlencode
 import os
 from datetime import datetime
+from scrapy.exceptions import CloseSpider
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
 MAX_API_CALLS = 5
@@ -19,7 +20,7 @@ class ZipRecruiterSpider(scrapy.Spider):
         "ROBOTSTXT_OBEY": False,
         "DOWNLOAD_DELAY": 1,
         "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
-        "CLOSESPIDER_PAGECOUNT": MAX_API_CALLS,  # safety net
+        "LOG_LEVEL": "DEBUG",
     }
 
     def __init__(self, *args, **kwargs):
@@ -40,7 +41,7 @@ class ZipRecruiterSpider(scrapy.Spider):
     def make_api_request(self, url, callback, **kwargs):
         if self.api_calls >= MAX_API_CALLS:
             self.log(f"⛔ API limit reached ({self.api_calls}/{MAX_API_CALLS}). Stopping crawl.")
-            return
+            raise CloseSpider(reason="max_api_calls_reached")
 
         self.api_calls += 1
         self.log(f"📡 API Call #{self.api_calls}: {url}")
@@ -124,7 +125,7 @@ class ZipRecruiterSpider(scrapy.Spider):
             }
     
         # --- Pagination ---
-        if self.api_calls < MAX_API_CALLS and self.jobs_scraped < 10:
+        if self.api_calls < MAX_API_CALLS and self.jobs_scraped < MAX_JOBS:
             next_page = response.css(
                 "a[aria-label='Next']::attr(href), a.next_page::attr(href), a[data-testid='pagination-next']::attr(href)"
             ).get()
@@ -141,3 +142,4 @@ class ZipRecruiterSpider(scrapy.Spider):
     def closed(self, reason):
         self.log(f"🧾 Total ScraperAPI calls made: {self.api_calls}/{MAX_API_CALLS}")
         self.log(f"📊 Total unique jobs scraped: {len(self.seen_urls)}")
+        self.log(f"🚪 Spider closed due to: {reason}")
