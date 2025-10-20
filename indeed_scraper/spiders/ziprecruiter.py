@@ -123,7 +123,7 @@ class ZipRecruiterSpider(scrapy.Spider):
             }
     
         # --- Pagination ---
-        if self.api_calls < MAX_API_CALLS and self.jobs_scraped < MAX_JOBS:
+        if self.api_calls < MAX_API_CALLS and self.jobs_scraped < 10:
             next_page = response.css(
                 "a[aria-label='Next']::attr(href), a.next_page::attr(href), a[data-testid='pagination-next']::attr(href)"
             ).get()
