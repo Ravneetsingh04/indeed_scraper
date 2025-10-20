@@ -3,6 +3,7 @@ from urllib.parse import urlencode
 import os
 from datetime import datetime
 from scrapy.exceptions import CloseSpider
+import inspect
 
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
 MAX_API_CALLS = 5
@@ -10,7 +11,17 @@ MAX_JOBS=5
 
 
 def get_proxy_url(url):
-    payload = {"api_key": API_KEY, "url": url, "render": "true"}
+    payload = {
+        "api_key": API_KEY,
+        "url": url,
+        "country_code": "us",
+        "render": "false",          # ✅ Disable JS rendering (ZipRecruiter is static)
+        "premium": "false",
+        "num_retries": 0,
+        "cache": "true",
+        "follow_redirect": "false",
+        "keep_headers": "true",
+    }
     return "https://api.scraperapi.com/?" + urlencode(payload)
 
 
@@ -20,7 +31,7 @@ class ZipRecruiterSpider(scrapy.Spider):
         "ROBOTSTXT_OBEY": False,
         "DOWNLOAD_DELAY": 1,
         "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
-        "LOG_LEVEL": "DEBUG",
+        "CLOSESPIDER_PAGECOUNT": MAX_API_CALLS,
     }
 
     def __init__(self, *args, **kwargs):
@@ -41,23 +52,31 @@ class ZipRecruiterSpider(scrapy.Spider):
     def make_api_request(self, url, callback, **kwargs):
         if self.api_calls >= MAX_API_CALLS:
             self.log(f"⛔ API limit reached ({self.api_calls}/{MAX_API_CALLS}). Stopping crawl.")
-            raise CloseSpider(reason="max_api_calls_reached")
+            return
 
         self.api_calls += 1
         self.log(f"📡 API Call #{self.api_calls}: {url}")
+        stack = [f"{frame.function}()" for frame in inspect.stack()[1:4]]
+        self.log(f"🧭 Call triggered from: {' → '.join(stack)}")
         yield scrapy.Request(
             get_proxy_url(url),
             callback=callback,
             errback=self.handle_error,
             dont_filter=True,
-            meta={"dont_redirect": True},
+            meta={
+                "dont_redirect": True,
+                "handle_httpstatus_list": [301, 302, 303, 307, 308],
+            },
             **kwargs,
         )
 
 
     def parse(self, response):
         self.pageCount += 1
-        self.log(f"--- Fetched page {self.pageCount}: {response.url} (status {response.status})")
+        if self.api_calls > 1:
+            self.log(f"--- Fetched page {self.pageCount}: {response.url} (status {response.status})")
+            return
+        self.log(f"✅ Fetched page {self.pageCount}: {response.url} (status {response.status})")
     
         # --- Job Card Detection ---
         job_cards = response.css("div.flex.flex-col")
@@ -68,9 +87,6 @@ class ZipRecruiterSpider(scrapy.Spider):
         self.log(f"✅ Found {len(job_cards)} job cards.")
     
         for card in job_cards[:10]:
-            if self.jobs_scraped >= MAX_JOBS:
-                self.log(f"✅ Reached {MAX_JOBS} jobs — stopping further parsing.")
-                return
             # --- Job Title ---
             title = (
                 card.css("h2::text").get()
@@ -124,14 +140,6 @@ class ZipRecruiterSpider(scrapy.Spider):
                 "url": job_url,
             }
     
-        # --- Pagination ---
-        if self.api_calls < MAX_API_CALLS and self.jobs_scraped < MAX_JOBS:
-            next_page = response.css(
-                "a[aria-label='Next']::attr(href), a.next_page::attr(href), a[data-testid='pagination-next']::attr(href)"
-            ).get()
-            if next_page:
-                next_url = response.urljoin(next_page)
-                yield from self.make_api_request(next_url, self.parse)
 
 
 
