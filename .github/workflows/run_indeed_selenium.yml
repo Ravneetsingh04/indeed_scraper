@@ -27,7 +27,8 @@ jobs:
 
       - name: Run Selenium spider
         run: |
-          scrapy crawl indeed_selenium -o indeed_jobs_selenium.csv
+          cd indeed_scraper
+          scrapy crawl indeed_selenium -o ../indeed_jobs_selenium.csv
 
       - name: Upload output CSV as artifact
         uses: actions/upload-artifact@v4
