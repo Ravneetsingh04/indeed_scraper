@@ -4,6 +4,12 @@ import os
 from datetime import datetime
 import inspect
 
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml"
+}
+
+
 API_KEY = os.getenv("SCRAPER_API_KEY", "your_fallback_api_key")
 MAX_API_CALLS = 5
 
@@ -18,6 +24,8 @@ def get_proxy_url(url):
                 "premium": "false",   #Avoid expensive “premium” geo hops
                 "num_retries": 0,     #Limit backend retries
                 "cache": "true",       #Cache static pages
+                "block_ads": "true",         # 🚫 new: block ads and analytics
+                "block_resources": "true",   # 🚫 new: block images, css, scripts
                 "follow_redirect": "false",   # 🚫 stop following redirects (saves credits)
                 "keep_headers": "true",       # ensure headers aren’t re-fetched
               }
@@ -66,6 +74,7 @@ class IndeedSpider(scrapy.Spider):
             get_proxy_url(url),
             callback=callback,
             errback=self.handle_error,
+            headers=headers,
             dont_filter=True,                   # avoid duplicate filtering
             meta={"dont_redirect": True,
                   "handle_httpstatus_list": [301, 302, 303, 307, 308]
@@ -150,7 +159,10 @@ class IndeedSpider(scrapy.Spider):
             if not job_url:
                 continue
 
-            if job_url.startswith("/"):
+            if job_url.startswith("/pagead/clk"):
+                self.log(f"⛔ Skipping ad URL: {job_url}")
+                continue
+            elif job_url.startswith("/"):
                 job_url = urljoin("https://www.indeed.com",job_url)
 
             if job_url in self.seen_urls:
