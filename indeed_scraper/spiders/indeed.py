@@ -199,7 +199,7 @@ class IndeedSpider(scrapy.Spider):
         self.log("✅ Completed single batch scrape (no further pagination).")
 
 
-        def parse_mobile(self, response):
+    def parse_mobile(self, response):
         """Lighter version of parse() for Indeed’s mobile endpoint (/m/jobs)."""
         self.pageCount += 1
         self.log(f"--- Fetched MOBILE page {self.pageCount}: {response.url} (status {response.status})")
