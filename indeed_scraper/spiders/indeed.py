@@ -43,7 +43,7 @@ class IndeedSpider(scrapy.Spider):
         "REDIRECT_ENABLED": False, # <-- ➕ NEW: Explicitly disable redirect middleware
         "DOWNLOAD_DELAY": 1,             # polite delay between requests
         "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
-        "CLOSESPIDER_PAGECOUNT": 5       # safety stop during testing
+        "CLOSESPIDER_PAGECOUNT": 5,       # safety stop during testing
         # ➕ NEW: Accept a wider range of status codes (403, 503, etc.) to prevent retries/drops
         "HTTPERROR_ALLOWED_CODES": [403, 503, 404, 301, 302],
     }
