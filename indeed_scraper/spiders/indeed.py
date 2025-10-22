@@ -40,9 +40,12 @@ class IndeedSpider(scrapy.Spider):
     custom_settings = {
         "RETRY_ENABLED": False,          # avoid retrying failed ScraperAPI calls
         "ROBOTSTXT_OBEY": False,         # don't waste calls checking robots.txt
+        "REDIRECT_ENABLED": False, # <-- ➕ NEW: Explicitly disable redirect middleware
         "DOWNLOAD_DELAY": 1,             # polite delay between requests
         "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
         "CLOSESPIDER_PAGECOUNT": 5       # safety stop during testing
+        # ➕ NEW: Accept a wider range of status codes (403, 503, etc.) to prevent retries/drops
+        "HTTPERROR_ALLOWED_CODES": [403, 503, 404, 301, 302],
     }
 
     def __init__(self, *args, **kwargs):
@@ -57,7 +60,7 @@ class IndeedSpider(scrapy.Spider):
         search_location = "New York, NY"
         #Added 24 hrs filter
         indeed_url = f"https://www.indeed.com/jobs?q={search_query}&l={search_location}&fromage=1"
-        yield from self.make_api_request(indeed_url, self.parse_mobile)
+        yield from self.make_api_request(indeed_url, self.parse)
 
     def make_api_request(self, url, callback, **kwargs):
         if self.api_calls >= MAX_API_CALLS:
@@ -76,9 +79,7 @@ class IndeedSpider(scrapy.Spider):
             errback=self.handle_error,
             headers=headers,
             dont_filter=True,                   # avoid duplicate filtering
-            meta={"dont_redirect": True,
-                  "handle_httpstatus_list": [301, 302, 303, 307, 308]
-                 },       # disable redirects (each costs credits)
+            meta={"dont_redirect": True,},       # disable redirects (each costs credits)
             **kwargs,
         )
 
@@ -178,68 +179,11 @@ class IndeedSpider(scrapy.Spider):
                 "posted": posted,
                 "url": job_url,
             }
-
-        # Pagination
-        # if self.api_calls < MAX_API_CALLS:
-        #     next_page = response.css('a[aria-label="Next Page"]::attr(href), a[data-testid="pagination-page-next"]::attr(href)').get()
-        #     if next_page:
-        #         # Always join against Indeed’s domain — not ScraperAPI’s
-        #         next_url = urljoin("https://www.indeed.com", next_page)
-
-        #         # ✅ Prevent duplicate or recursive pagination
-        #         if next_url not in self.visited_pages:
-        #             self.visited_pages.add(next_url)
-        #             yield from self.make_api_request(next_url, self.parse)
-        #         else:
-        #             self.log(f"🔁 Skipping duplicate page: {next_url}")
     
         self.log(f"📌 Items yielded from page: {len(self.seen_urls)}")
 
         # ⚡ No pagination calls — single API hit behavior (like WWR)
         self.log("✅ Completed single batch scrape (no further pagination).")
-
-
-    def parse_mobile(self, response):
-        """Lighter version of parse() for Indeed’s mobile endpoint (/m/jobs)."""
-        self.pageCount += 1
-        self.log(f"--- Fetched MOBILE page {self.pageCount}: {response.url} (status {response.status})")
-    
-        # The mobile site has a simpler structure: div.job containers
-        job_cards = response.css("div.job")
-    
-        if not job_cards:
-            self.log("⚠ No job cards found on mobile site.")
-            return
-        else:
-            self.log(f"✅ Found {len(job_cards)} mobile job cards.")
-    
-        for card in job_cards[:10]:
-            title = card.css("a.jobtitle::text").get()
-            company = card.css("div.company::text").get()
-            location = card.css("div.location::text").get()
-            salary = card.css("span.salary::text, div.salarySnippet::text").get(default="Not disclosed")
-    
-            job_url = card.css("a.jobtitle::attr(href)").get()
-            if job_url and job_url.startswith("/"):
-                job_url = f"https://www.indeed.com{job_url}"
-    
-            if not job_url or job_url in self.seen_urls:
-                continue
-    
-            self.seen_urls.add(job_url)
-    
-            yield {
-                "title": (title or "").strip(),
-                "company": (company or "").strip(),
-                "location": (location or "").strip(),
-                "salary": (salary or "").strip(),
-                "posted": datetime.now().strftime("%Y-%m-%d"),
-                "url": job_url,
-            }
-
-        self.log(f"📌 Items yielded from MOBILE page: {len(self.seen_urls)}")
-        self.log("✅ Completed single mobile batch scrape (no further pagination).")
-
 
     def handle_error(self, failure):
         self.log(f"❌ Request failed: {failure.request.url}")
