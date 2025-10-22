@@ -26,9 +26,8 @@ jobs:
           pip install -r indeed_scraper/requirements.txt
 
       - name: Run Selenium spider
-        run: |
-          cd indeed_scraper
-          scrapy crawl indeed_selenium -o ../indeed_jobs_selenium.csv
+        working-directory: indeed_scraper
+        run: scrapy crawl indeed_selenium -o ../indeed_jobs_selenium.csv
 
       - name: Upload output CSV as artifact
         uses: actions/upload-artifact@v4
