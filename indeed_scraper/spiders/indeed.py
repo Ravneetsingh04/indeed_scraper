@@ -28,6 +28,7 @@ def get_proxy_url(url):
                 "block_resources": "true",   # 🚫 new: block images, css, scripts
                 "follow_redirect": "false",   # 🚫 stop following redirects (saves credits)
                 "keep_headers": "true",       # ensure headers aren’t re-fetched
+                "proxy_type": "datacenter", # Use the cheapest proxy type
               }
     return "https://api.scraperapi.com/?" + urlencode(payload)
 
