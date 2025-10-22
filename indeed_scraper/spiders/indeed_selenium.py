@@ -2,7 +2,8 @@ import scrapy
 from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from ..utils.selenium_driver import get_driver
+from indeed_scraper.utils.selenium_driver import get_driver
+
 
 
 
