@@ -199,43 +199,43 @@ class IndeedSpider(scrapy.Spider):
         self.log("✅ Completed single batch scrape (no further pagination).")
 
 
-    def parse_mobile(self, response):
-    """Lighter version of parse() for Indeed’s mobile endpoint (/m/jobs)."""
-    self.pageCount += 1
-    self.log(f"--- Fetched MOBILE page {self.pageCount}: {response.url} (status {response.status})")
-
-    # The mobile site has a simpler structure: div.job containers
-    job_cards = response.css("div.job")
-
-    if not job_cards:
-        self.log("⚠ No job cards found on mobile site.")
-        return
-    else:
-        self.log(f"✅ Found {len(job_cards)} mobile job cards.")
-
-    for card in job_cards[:10]:
-        title = card.css("a.jobtitle::text").get()
-        company = card.css("div.company::text").get()
-        location = card.css("div.location::text").get()
-        salary = card.css("span.salary::text, div.salarySnippet::text").get(default="Not disclosed")
-
-        job_url = card.css("a.jobtitle::attr(href)").get()
-        if job_url and job_url.startswith("/"):
-            job_url = f"https://www.indeed.com{job_url}"
-
-        if not job_url or job_url in self.seen_urls:
-            continue
-
-        self.seen_urls.add(job_url)
-
-        yield {
-            "title": (title or "").strip(),
-            "company": (company or "").strip(),
-            "location": (location or "").strip(),
-            "salary": (salary or "").strip(),
-            "posted": datetime.now().strftime("%Y-%m-%d"),
-            "url": job_url,
-        }
+        def parse_mobile(self, response):
+        """Lighter version of parse() for Indeed’s mobile endpoint (/m/jobs)."""
+        self.pageCount += 1
+        self.log(f"--- Fetched MOBILE page {self.pageCount}: {response.url} (status {response.status})")
+    
+        # The mobile site has a simpler structure: div.job containers
+        job_cards = response.css("div.job")
+    
+        if not job_cards:
+            self.log("⚠ No job cards found on mobile site.")
+            return
+        else:
+            self.log(f"✅ Found {len(job_cards)} mobile job cards.")
+    
+        for card in job_cards[:10]:
+            title = card.css("a.jobtitle::text").get()
+            company = card.css("div.company::text").get()
+            location = card.css("div.location::text").get()
+            salary = card.css("span.salary::text, div.salarySnippet::text").get(default="Not disclosed")
+    
+            job_url = card.css("a.jobtitle::attr(href)").get()
+            if job_url and job_url.startswith("/"):
+                job_url = f"https://www.indeed.com{job_url}"
+    
+            if not job_url or job_url in self.seen_urls:
+                continue
+    
+            self.seen_urls.add(job_url)
+    
+            yield {
+                "title": (title or "").strip(),
+                "company": (company or "").strip(),
+                "location": (location or "").strip(),
+                "salary": (salary or "").strip(),
+                "posted": datetime.now().strftime("%Y-%m-%d"),
+                "url": job_url,
+            }
 
         self.log(f"📌 Items yielded from MOBILE page: {len(self.seen_urls)}")
         self.log("✅ Completed single mobile batch scrape (no further pagination).")
