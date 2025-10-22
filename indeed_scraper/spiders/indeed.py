@@ -15,6 +15,9 @@ MAX_API_CALLS = 5
 
 
 def get_proxy_url(url):
+    # This unique session ID forces ScraperAPI to use only ONE proxy IP
+    # and prevents the expensive internal retry/proxy escalation logic.
+    SESSION_ID = "indeed_scrape_session_1"
     # PROXY URL BUILDER (Removed render=true)
     payload = {
                 "api_key": API_KEY,
@@ -29,6 +32,8 @@ def get_proxy_url(url):
                 "follow_redirect": "false",   # 🚫 stop following redirects (saves credits)
                 "keep_headers": "true",       # ensure headers aren’t re-fetched
                 "proxy_type": "residential", # Use the cheapest proxy type
+                # 🟢 NEW CRITICAL ADDITION: Forces a single proxy session/attempt
+                "session_number": SESSION_ID,
               }
     return "https://api.scraperapi.com/?" + urlencode(payload)
 
