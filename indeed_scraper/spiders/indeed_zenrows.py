@@ -19,18 +19,21 @@ def get_proxy_url(url):
     Note: parameter names below (apikey, url, js_render, block_resources, premium_proxy)
     are commonly supported — check ZenRows docs for latest names if required.
     """
+    api_key = os.getenv("ZENROWS_API_KEY")
     payload = {
-        "apikey": ZENROWS_KEY,
+        "apikey": api_key,
         "url": url,
         # try to keep JS disabled (we want raw HTML only)
-        "js": "false",               # disable JS rendering
+        "js_render": "false",               # disable JS rendering
         # block images/styles/scripts and ads to reduce backend fetches
         "block_resources": "true",
         "block_ads": "true",
         # premium_proxy helps with anti-bot but can be turned off to compare behavior
         "premium_proxy": "true",
         # optionally set country if needed: "proxy_country": "US"
+        "antibot": "true",        # Recommended for Indeed and Glassdoor
     }
+    print("🔑 Using ZenRows Key:", api_key[:6] + "..." if api_key else "None")
     return "https://api.zenrows.com/v1/?" + urlencode(payload)
 
 
