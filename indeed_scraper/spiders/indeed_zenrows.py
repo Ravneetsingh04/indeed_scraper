@@ -14,23 +14,28 @@ MAX_API_CALLS = 5
 
 
 def get_proxy_url(url):
-    """
-    Build ZenRows URL. Adjust parameters if you want different behavior.
-    Note: parameter names below (apikey, url, js_render, block_resources, premium_proxy)
-    are commonly supported — check ZenRows docs for latest names if required.
-    """
-    api_key = os.getenv("ZENROWS_API_KEY")
+   
+    # --- Encode custom headers safely ---
+    import json
+    import urllib.parse
+
+    headers_json = json.dumps({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    })
+    encoded_headers = urllib.parse.quote(headers_json)
+
     payload = {
         "apikey": api_key,
-        "url": quote(url, safe=":/?&="),  # ensures clean encoding
-        "js_render": "true",     # disable JavaScript rendering
-        "antibot": "true",        # handle anti-bot measures
-        "premium_proxy": "true",  # optional
-        "wait_until": "networkidle",  # ensure full load
-        "custom_headers": '{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}'
-
+        "url": quote(url, safe=":/?&="),
+        "js_render": "true",             # ✅ render JS for Indeed
+        "antibot": "true",
+        "premium_proxy": "true",
+        "wait_until": "networkidle",
+        "custom_headers": encoded_headers  # ✅ safely encoded
     }
-    return "https://api.zenrows.com/v1/?"  + "&".join(f"{k}={v}" for k, v in payload.items())
+
+    # ✅ Join manually to avoid double encoding issues
+    return "https://api.zenrows.com/v1/?" + "&".join(f"{k}={v}" for k, v in payload.items())
 
 
 class IndeedZenRowsSpider(scrapy.Spider):
