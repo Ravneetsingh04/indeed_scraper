@@ -25,7 +25,7 @@ def get_proxy_url(url):
     encoded_headers = urllib.parse.quote(headers_json)
 
     payload = {
-        "apikey": api_key,
+        "apikey": ZENROWS_KEY,
         "url": quote(url, safe=":/?&="),
         "js_render": "true",             # ✅ render JS for Indeed
         "antibot": "true",
