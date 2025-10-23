@@ -19,22 +19,14 @@ def get_proxy_url(url):
     Note: parameter names below (apikey, url, js_render, block_resources, premium_proxy)
     are commonly supported — check ZenRows docs for latest names if required.
     """
+    api_key = os.getenv("ZENROWS_API_KEY")
     payload = {
-        "apikey": ZENROWS_KEY,
+        "apikey": api_key,
         "url": url,
-        "country_code": "us", #Reduce proxy rotation 
-        "render": "false",    #Explicitly disable rendering
-        "premium": "false",   #Avoid expensive “premium” geo hops
-        "num_retries": 0,     #Limit backend retries
-        "cache": "true",       #Cache static pages
-        "block_ads": "true",         # 🚫 new: block ads and analytics
-        "block_resources": "true",   # 🚫 new: block images, css, scripts
-        "follow_redirect": "false",   # 🚫 stop following redirects (saves credits)
-        "keep_headers": "true",       # ensure headers aren’t re-fetched
-        "proxy_type": "residential", # Use the cheapest proxy type
-        # 🟢 NEW CRITICAL ADDITION: Forces a single proxy session/attempt
-        "session_number": SESSION_ID,
-        "antibot": "true",        # Recommended for Indeed and Glassdoor
+        "js_render": "false",     # disable JavaScript rendering
+        "antibot": "true",        # handle anti-bot measures
+        "premium_proxy": "true",  # optional
+        "wait_until": "networkidle"  # ensure full load
     }
     return "https://api.zenrows.com/v1/?" + urlencode(payload)
 
