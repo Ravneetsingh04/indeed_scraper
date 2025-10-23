@@ -19,18 +19,21 @@ def get_proxy_url(url):
     Note: parameter names below (apikey, url, js_render, block_resources, premium_proxy)
     are commonly supported — check ZenRows docs for latest names if required.
     """
-    api_key = os.getenv("ZENROWS_API_KEY")
     payload = {
-        "apikey": api_key,
+        "apikey": ZENROWS_KEY,
         "url": url,
-        # try to keep JS disabled (we want raw HTML only)
-        "js_render": "false",               # disable JS rendering
-        # block images/styles/scripts and ads to reduce backend fetches
-        "block_resources": "true",
-        "block_ads": "true",
-        # premium_proxy helps with anti-bot but can be turned off to compare behavior
-        "premium_proxy": "true",
-        # optionally set country if needed: "proxy_country": "US"
+        "country_code": "us", #Reduce proxy rotation 
+        "render": "false",    #Explicitly disable rendering
+        "premium": "false",   #Avoid expensive “premium” geo hops
+        "num_retries": 0,     #Limit backend retries
+        "cache": "true",       #Cache static pages
+        "block_ads": "true",         # 🚫 new: block ads and analytics
+        "block_resources": "true",   # 🚫 new: block images, css, scripts
+        "follow_redirect": "false",   # 🚫 stop following redirects (saves credits)
+        "keep_headers": "true",       # ensure headers aren’t re-fetched
+        "proxy_type": "residential", # Use the cheapest proxy type
+        # 🟢 NEW CRITICAL ADDITION: Forces a single proxy session/attempt
+        "session_number": SESSION_ID,
         "antibot": "true",        # Recommended for Indeed and Glassdoor
     }
     print("🔑 Using ZenRows Key:", api_key[:6] + "..." if api_key else "None")
@@ -46,6 +49,8 @@ class IndeedZenRowsSpider(scrapy.Spider):
         "DOWNLOAD_DELAY": 1,
         "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
         "CLOSESPIDER_PAGECOUNT": 5,
+        "REDIRECT_ENABLED": False, # <-- ➕ NEW: Explicitly disable redirect middleware
+        "HTTPERROR_ALLOWED_CODES": [403, 503, 404, 301, 302],
     }
 
     def __init__(self, *args, **kwargs):
@@ -81,7 +86,7 @@ class IndeedZenRowsSpider(scrapy.Spider):
             errback=self.handle_error,
             headers=headers,
             dont_filter=True,
-            meta={"dont_redirect": True, "handle_httpstatus_list": [301, 302, 303, 307, 308]},
+            meta={"dont_redirect": True,},
             **kwargs,
         )
 
