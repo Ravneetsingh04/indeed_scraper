@@ -8,7 +8,7 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml"
 }
-
+SESSION_ID = "indeed_scrape_session_1"
 ZENROWS_KEY = os.getenv("ZENROWS_API_KEY", "your_fallback_zenrows_key")
 MAX_API_CALLS = 5
 
