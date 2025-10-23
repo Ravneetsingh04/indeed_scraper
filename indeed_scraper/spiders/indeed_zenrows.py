@@ -1,5 +1,5 @@
 import scrapy
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode, urljoin, quote
 import os
 from datetime import datetime
 import inspect
@@ -22,13 +22,13 @@ def get_proxy_url(url):
     api_key = os.getenv("ZENROWS_API_KEY")
     payload = {
         "apikey": api_key,
-        "url": url,
-        "js_render": "false",     # disable JavaScript rendering
+        "url": quote(url, safe=":/?&="),  # ensures clean encoding
+        "js_render": "true",     # disable JavaScript rendering
         "antibot": "true",        # handle anti-bot measures
         "premium_proxy": "true",  # optional
         "wait_until": "networkidle"  # ensure full load
     }
-    return "https://api.zenrows.com/v1/?" + urlencode(payload)
+    return "https://api.zenrows.com/v1/?"  + "&".join(f"{k}={v}" for k, v in payload.items())
 
 
 class IndeedZenRowsSpider(scrapy.Spider):
