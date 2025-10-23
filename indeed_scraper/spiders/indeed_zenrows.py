@@ -36,7 +36,6 @@ def get_proxy_url(url):
         "session_number": SESSION_ID,
         "antibot": "true",        # Recommended for Indeed and Glassdoor
     }
-    print("🔑 Using ZenRows Key:", api_key[:6] + "..." if api_key else "None")
     return "https://api.zenrows.com/v1/?" + urlencode(payload)
 
 
