@@ -26,7 +26,7 @@ def get_proxy_url(url):
         "js_render": "true",     # disable JavaScript rendering
         "antibot": "true",        # handle anti-bot measures
         "premium_proxy": "true",  # optional
-        "wait_until": "networkidle"  # ensure full load
+        "wait_until": "networkidle",  # ensure full load
         "custom_headers": '{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}'
 
     }
