@@ -27,6 +27,8 @@ def get_proxy_url(url):
         "antibot": "true",        # handle anti-bot measures
         "premium_proxy": "true",  # optional
         "wait_until": "networkidle"  # ensure full load
+        "custom_headers": '{"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}'
+
     }
     return "https://api.zenrows.com/v1/?"  + "&".join(f"{k}={v}" for k, v in payload.items())
 
@@ -55,6 +57,8 @@ class IndeedZenRowsSpider(scrapy.Spider):
         # keep dynamic fields the same as your current spider
         search_query = getattr(self, "search_query", "Python Developer")
         search_location = getattr(self, "search_location", "New York, NY")
+        self.log(f"🔑 ZenRows Key Loaded: {os.getenv('ZENROWS_API_KEY')[:6]}***")
+
 
         # NOTE: we're keeping the desktop endpoint here so your current parse code works unchanged
         # You can switch to /m/jobs later for mobile version testing (see notes).
