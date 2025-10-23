@@ -92,6 +92,9 @@ class IndeedZenRowsSpider(scrapy.Spider):
 
     # ---- keep your exact parse() implementation as-is so HTML parsing is unchanged ----
     def parse(self, response):
+        if response.status != 200:
+            self.log(f"⚠️ ZenRows returned status {response.status} — body snippet: {response.text[:300]}")
+            return
         self.pageCount += 1
         if self.api_calls > 1:
             self.log("⛔ Preventing further requests (single-call mode enforced)")
