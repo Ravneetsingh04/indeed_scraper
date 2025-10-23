@@ -1,0 +1,65 @@
+name: 🕷️ Indeed ZenRows Spider
+
+on:
+  schedule:
+    - cron: '0 10 * * *'  # Runs every day at 10:00 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write  # Allows workflow to push CSV results back to repo
+
+jobs:
+  scrape_jobs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install scrapy requests pandas
+
+      - name: Run ZenRows spider and merge results
+        env:
+          ZENROWS_API_KEY: ${{ secrets.ZENROWS_API_KEY }}
+        working-directory: indeed_scraper
+        run: |
+          echo "Running ZenRows Scrapy spider..."
+          mkdir -p $GITHUB_WORKSPACE/output
+          
+          # Run ZenRows spider
+          scrapy crawl indeed_zenrows -o $GITHUB_WORKSPACE/output/new_zenrows_jobs.csv
+
+          echo "Scrapy completed. Checking output:"
+          ls -lh $GITHUB_WORKSPACE/output/
+          head -n 10 $GITHUB_WORKSPACE/output/new_zenrows_jobs.csv || echo "File empty!"
+
+          # Merge with existing CSV (if exists)
+          cd $GITHUB_WORKSPACE
+          if [ -f zenrows_jobs.csv ]; then
+            echo "Merging old and new job listings (new on top)..."
+            head -n 1 output/new_zenrows_jobs.csv > merged.csv
+            tail -n +2 output/new_zenrows_jobs.csv >> merged.csv
+            tail -n +2 zenrows_jobs.csv >> merged.csv
+            mv merged.csv zenrows_jobs.csv
+          else
+            echo "No existing file found, creating a new one..."
+            cp output/new_zenrows_jobs.csv zenrows_jobs.csv
+          fi
+
+      - name: Commit and push results
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add zenrows_jobs.csv || echo "No file to add"
+          git commit -m "Append new ZenRows Indeed jobs" || echo "No changes to commit"
+          git push
