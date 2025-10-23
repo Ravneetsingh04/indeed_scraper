@@ -18,7 +18,8 @@ def get_proxy_url(url):
     # --- Encode custom headers safely ---
     import json
     import urllib.parse
-
+    api_key = os.getenv("ZENROWS_API_KEY")
+    encoded_target_url = urllib.parse.quote(url, safe="")  # no safe chars
     headers_json = json.dumps({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     })
@@ -26,7 +27,7 @@ def get_proxy_url(url):
 
     payload = {
         "apikey": ZENROWS_KEY,
-        "url": quote(url, safe=":/?&="),
+        "url": encoded_target_url,
         "js_render": "true",             # ✅ render JS for Indeed
         "antibot": "true",
         "premium_proxy": "true",
@@ -34,8 +35,8 @@ def get_proxy_url(url):
         "custom_headers": encoded_headers  # ✅ safely encoded
     }
 
-    # ✅ Join manually to avoid double encoding issues
-    return "https://api.zenrows.com/v1/?" + "&".join(f"{k}={v}" for k, v in payload.items())
+    final_url = "https://api.zenrows.com/v1/?" + "&".join(f"{k}={v}" for k, v in payload.items())
+    return final_url
 
 
 class IndeedZenRowsSpider(scrapy.Spider):
