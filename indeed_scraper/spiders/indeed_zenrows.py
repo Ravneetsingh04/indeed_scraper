@@ -30,9 +30,10 @@ def get_proxy_url(url):
         "url": encoded_target_url,
         "js_render": "true",
         "premium_proxy": "true",
-        "wait_until": "networkidle",
+        "wait": "5000",
         "custom_headers": encoded_headers,
-        "proxy_country":"us",
+        "proxy_country":"ca",
+        "referer": "https://www.google.com/",
     }
 
     final_url = "https://api.zenrows.com/v1/?" + "&".join(f"{k}={v}" for k, v in payload.items())
