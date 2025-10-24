@@ -28,11 +28,10 @@ def get_proxy_url(url):
     payload = {
         "apikey": ZENROWS_KEY,
         "url": encoded_target_url,
-        "js_render": "true",             # ✅ render JS for Indeed
-        "antibot": "true",
+        "js_render": "true",
         "premium_proxy": "true",
         "wait_until": "networkidle",
-        "custom_headers": encoded_headers  # ✅ safely encoded
+        "custom_headers": encoded_headers
     }
 
     final_url = "https://api.zenrows.com/v1/?" + "&".join(f"{k}={v}" for k, v in payload.items())
