@@ -32,7 +32,7 @@ def get_proxy_url(url):
         "premium_proxy": "true",
         "wait_until": "networkidle",
         "custom_headers": encoded_headers,
-        "proxy_country"="us",
+        "proxy_country":"us",
     }
 
     final_url = "https://api.zenrows.com/v1/?" + "&".join(f"{k}={v}" for k, v in payload.items())
